@@ -132,3 +132,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# database objects.
+*.db
+pronom-export/*
+DROID_SignatureFile_*
+container-signature-*

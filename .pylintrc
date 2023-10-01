@@ -20,6 +20,10 @@ ignore-patterns=
     ^(.+).yml,
     ^(.+).yaml,
     ^(.+).toml,
+    ^(.+).env,
+    ^(.+).html,
+    ^(.+).htm,
+    ^(.+).txt,
     ^\.,
 
 ignore-paths=

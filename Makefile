@@ -24,6 +24,12 @@ package-upload: clean package-deps package-check            ## Upload package to
 
 package: package-upload
 
+docs:                                                       ## Generate documentation
+	pdoc3 --html src/ --force
+
+serve-docs:                                                 ## Serve the dcumentation
+	python3 -m http.server --directory html/src/
+
 clean:                                                      ## Clean the package directory
 	rm -rf src/*.egg-info/
 	rm -rf build/

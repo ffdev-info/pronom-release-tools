@@ -1,6 +1,105 @@
-# Template repository
+# PRONOM Release Tools
 
-Template repository for Python projects.
+Tools for working with PRONOM releases.
+
+## Tooling
+
+A summary of the tooling included.
+
+### PRONOM Cron
+
+PRONOM Cron can be run as a cron task to update the pronom summary database
+on a regular basis. Run with `-i` to initialize, and from there, run it `n-`
+times a day to look for a new PRONOM release.
+
+To run:
+
+```sh
+python -m src.pronom_cron.pronom_cron
+```
+
+### PRONOM Summary
+
+Summarize a PRONOM by comparing the PRONOM dataset with its corresponding
+signature files. The output for a single file format looks as follows:
+
+```json
+  {
+    "name": "yEnc Encoded File",
+    "description": "complete",
+    "signature": true,
+    "identifier": "fmt/1100"
+  }
+```
+
+To run:
+
+```sh
+python -m src.pronom_summary.pronom_summary
+```
+
+### PRONOM Tools
+
+Coordinate PRONOM release output to produce a summary about the dataset and
+provide links to latest release information, including links to the latest
+PRONOM signature files.
+
+To run:
+
+```sh
+python -m src.pronom_tools.pronom_tools
+```
+
+#### Check existing
+
+```json
+{
+  "date": "2023-11-23",
+  "latest_puid": "fmt/1924",
+  "version": "V116",
+  "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
+  "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
+  "xpuid_const": "x-fmt/455"
+}
+```
+
+#### Release stats
+
+```json
+{
+  "date": "2023-11-23",
+  "latest_puid": "fmt/1924",
+  "version": "V116",
+  "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
+  "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
+  "xpuid_const": "x-fmt/455",
+  "pronom_data": [
+    {
+      "name": "Broadcast WAVE 0 Generic",
+      "description": "complete",
+      "signature": true,
+      "identifier": "fmt/1"
+    },
+    {
+      "name": "Microsoft Word for Macintosh Document 3.0",
+      "description": "complete",
+      "signature": true,
+      "identifier": "x-fmt/1"
+    }
+  ]
+}
+```
+
+### PRONOM Stats
+
+Provides a HTTP server to store stats about a PRONOM release based on the
+different scripts above.
+
+To run:
+
+```sh
+python -m src.pronom_stats.pronom_stats
+```
 
 ## Developer install
 
@@ -60,12 +159,14 @@ repository:
 
 ```make
 clean                          Clean the package directory
-help                           Print this help message.
+docs                           Generate documentation
+help                           Print this help message
 package-check                  Check the distribution is valid
 package-deps                   Upgrade dependencies for packaging
 package-source                 Package the source code
 package-upload                 Upload package to pypi
 package-upload-test            Upload package to test.pypi
+serve-docs                     Serve the dcumentation
 tar-source                     Package repository as tar for easy distribution
 ```
 
