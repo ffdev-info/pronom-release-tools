@@ -138,3 +138,5 @@ dmypy.json
 pronom-export/*
 DROID_SignatureFile_*
 container-signature-*
+*(copy)
+todo

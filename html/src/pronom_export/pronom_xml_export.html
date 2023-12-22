@@ -45,6 +45,7 @@ from pathlib import Path
 from typing import Final
 
 import requests
+from tenacity import retry, wait_exponential
 
 # Set up logging.
 logging.basicConfig(
@@ -86,6 +87,7 @@ def check_record(ffb: str) -&gt; bool:
     return False
 
 
+@retry(wait=wait_exponential(multiplier=1, min=4, max=10))
 def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
     &#34;&#34;&#34;Perform the HTTP request and save routine to save the
     PRONOM record to disk.
@@ -100,6 +102,7 @@ def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
         return
     with open(file_name, &#34;w&#34;, encoding=&#34;utf-8&#34;) as fmt_record:
         fmt_record.write(request.text)
+    time.sleep(0.5)
     return
 
 
@@ -211,7 +214,8 @@ PRONOM record to disk.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
+<pre><code class="python">@retry(wait=wait_exponential(multiplier=1, min=4, max=10))
+def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
     &#34;&#34;&#34;Perform the HTTP request and save routine to save the
     PRONOM record to disk.
     &#34;&#34;&#34;
@@ -225,6 +229,7 @@ PRONOM record to disk.</p></div>
         return
     with open(file_name, &#34;w&#34;, encoding=&#34;utf-8&#34;) as fmt_record:
         fmt_record.write(request.text)
+    time.sleep(0.5)
     return</code></pre>
 </details>
 </dd>

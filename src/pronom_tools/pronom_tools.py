@@ -46,8 +46,10 @@ one another.
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -58,11 +60,9 @@ from pathlib import Path
 from typing import Final, Union
 
 import requests
+from dotenv import load_dotenv
 
 from .version import get_version
-
-# sys.path.append("..")
-
 
 try:
     from src.pronom_export.pronom_xml_export import export_pronom_data
@@ -71,6 +71,10 @@ except ModuleNotFoundError:
     from pronom_export.pronom_xml_export import export_pronom_data
     from pronom_summary.pronom_summary import parse_pronom
 
+
+ENV_FILE: Final[str] = "pronom.env"
+
+load_dotenv(ENV_FILE, verbose=True)
 
 # Set up logging.
 logging.basicConfig(
@@ -117,6 +121,7 @@ class ReleaseSummary:
     date: str
     latest_puid: str
     version: str
+    release_notes: str
     sig_file: str = ""
     container_sig: str = ""
     xpuid_const: str = "x-fmt/455"
@@ -163,6 +168,10 @@ class ReleaseSummary:
         file_name = f"{CDN_BASE}container-signature-{self._get_container_date()}.xml"
         self.container_sig = file_name
         return file_name
+
+    def get_container_name(self) -> str:
+        """Return just the container signature file name."""
+        return self.container_sig.replace(CDN_BASE, "")
 
 
 def download_container(rel: ReleaseSummary) -> str:
@@ -289,6 +298,7 @@ def parse_release_xml(release_xml: str) -> (str, str, str):
         release_date,
         newest_record,
         signature_version,
+        RELEASE_NOTE_URL,
     )
     summary.make_sig_file_url()
     summary.make_container_sig_file_url()
@@ -344,6 +354,57 @@ async def get_summary(clean: bool = False) -> dict:
     return rel_augmented
 
 
+async def store_summary():
+    """Store the PRONOM summary in the database."""
+    summary = await get_summary()
+    store_pronom_summary(summary)
+
+
+def _get_auth():
+    """Retrieve the authentication information from the environment."""
+    system_pass = None
+    try:
+        system_pass = os.environ["SERVER_AUTH"]
+    except KeyError as err:
+        logging.error("environment needs configuring: %s", err)
+        sys.exit(1)
+    digest = hashlib.sha256()
+    digest.update(system_pass.strip().encode())
+    return digest.hexdigest()
+
+
+def _get_api_addr():
+    """Get the address of the API server."""
+    server_addr = ""
+    try:
+        server_addr = os.environ["SERVER_ADDR"]
+    except KeyError as err:
+        logging.error("environment needs configuring: %s", err)
+        sys.exit(1)
+    return server_addr
+
+
+def store_pronom_summary(data: str):
+    """Store the PRONOM summary."""
+    headers = {}
+    headers["auth"] = _get_auth()
+    server_addr = _get_api_addr()
+    try:
+        resp = requests.put(
+            f"{server_addr}/pronom_summary",
+            data=json.dumps(data),
+            headers=headers,
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            logger.error("error storing PRONOM data: %s", resp)
+            sys.exit(1)
+    except requests.exceptions.ConnectionError as err:
+        logger.error("unable to connect to database: %s", err)
+        sys.exit(1)
+    logger.info("PRONOM data stored")
+
+
 async def pronom_tools():
     """Run the PRONOM tooling."""
     parser = argparse.ArgumentParser(
@@ -369,15 +430,23 @@ async def pronom_tools():
     )
 
     parser.add_argument(
-        "--force",
-        "-f",
-        help="download and output any existing PRONOM data",
+        "--summary",
+        "-s",
+        help="summarize existing PRONOM data",
         required=False,
         action="store_true",
     )
 
     parser.add_argument(
-        "--clean-and-force",
+        "--store",
+        "-st",
+        help="store existing PRONOM summary (ensure that an existing pronom-stats server is running)",
+        required=False,
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--clean-and-summary",
         "-c",
         help="download and output any existing PRONOM data (deletes existing `pronom-export` folder)",
         required=False,
@@ -425,9 +494,13 @@ async def pronom_tools():
         print(get_version())
         sys.exit()
 
-    if args.force or args.clean_and_force:
-        res = await get_summary(args.clean_and_force)
+    if args.summary or args.clean_and_summary:
+        res = await get_summary(args.clean_and_summary)
         print(json.dumps(res, indent=2))
+        sys.exit()
+
+    if args.store:
+        res = await store_summary()
         sys.exit()
 
     if args.download_container:

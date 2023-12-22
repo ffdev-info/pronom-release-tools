@@ -58,9 +58,10 @@ reboot time otherwise. It&#39;s not hugely important to the functioning
 of this app.
 &#34;&#34;&#34;
 
-# pylint: disable=E1101
+# pylint: disable=E1101,R0801
 
 import argparse
+import functools
 import hashlib
 import importlib
 import json
@@ -74,7 +75,8 @@ from typing import Annotated, Final
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 # Set up logging.
 logging.basicConfig(
@@ -104,8 +106,17 @@ async def init_db(cur: sqlite3.Cursor):
         pass
 
 
+def _escape_ins(ins: str) -&gt; str:
+    &#34;&#34;&#34;Provides a way to escape the data we&#39;re inserting. It&#39;s a bit
+    of a hack. First created to handle single-quotes but will
+    potentially be needed for other character types.
+    &#34;&#34;&#34;
+    return ins.replace(&#34;&#39;&#34;, &#34;&#34;)
+
+
 async def _insert_version(version: str, summary: str):
     &#34;&#34;&#34;Deleteme&#34;&#34;&#34;
+    summary = _escape_ins(summary)
     ins = f&#34;insert into pronom (version, summary) values (&#39;{version}&#39;, &#39;{summary}&#39;);&#34;
     app.cur.execute(ins)
     app.cur.execute(&#34;commit;&#34;)
@@ -114,11 +125,13 @@ async def _insert_version(version: str, summary: str):
 
 def _load_config():
     &#34;&#34;&#34;Ensure the config is properly loaded.&#34;&#34;&#34;
-    load_dotenv(ENV_FILE)
+    load_dotenv(ENV_FILE, override=False, verbose=True)
     try:
         os.environ[&#34;SERVER_AUTH&#34;]
     except KeyError as err:
-        logging.error(&#34;environment needs configuring: %s&#34;, err)
+        logging.error(
+            &#34;environment needs configuring: %s (e.g. SERVER_AUTH=&#39;badf00d&#39;)&#34;, err
+        )
         raise err
 
 
@@ -158,6 +171,19 @@ app = FastAPI(
     },
     openapi_tags=tags_metadata,
     lifespan=lifespan,
+)
+
+origins = [
+    &#34;http://127.0.0.1:26001&#34;,
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=[&#34;*&#34;],
+    allow_headers=[&#34;*&#34;],
+    expose_headers=[&#34;X-Content-type&#34;],
 )
 
 
@@ -213,12 +239,139 @@ async def get_pronom_summary():
     return ret
 
 
-@app.get(&#34;/pronom_version&#34;, tags=[TAG_PRONOM])
-async def get_pronom_version():
+@app.get(&#34;/pronom_version&#34;, tags=[TAG_PRONOM], response_class=HTMLResponse)
+async def get_pronom_version() -&gt; str:
     &#34;&#34;&#34;Retrieve the PRONOM version from the database.&#34;&#34;&#34;
     res = app.cur.execute(&#34;select version from pronom order by rowid desc limit 1;&#34;)
     res = res.fetchone()
     return res[0]
+
+
+@functools.cache
+def _get_summary() -&gt; dict:
+    &#34;&#34;&#34;Return the PRONOM summary from the database.&#34;&#34;&#34;
+    res = app.cur.execute(&#34;select summary from pronom order by rowid desc limit 1;&#34;)
+    res = res.fetchone()
+    return json.loads(res[0])
+
+
+@app.get(&#34;/records_count&#34;, tags=[TAG_PRONOM])
+async def get_complete_records_count():
+    &#34;&#34;&#34;Retrieve the PRONOM version from the database.&#34;&#34;&#34;
+    summary = _get_summary()
+    return len(summary.get(&#34;pronom_data&#34;, []))
+
+
+@app.get(&#34;/complete_description_count&#34;)
+async def get_complete_descriptions_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] == &#34;complete&#34;
+    ]
+    return len(complete)
+
+
+@app.get(&#34;/incomplete_description_count&#34;)
+async def get_incomplete_descriptions_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] != &#34;complete&#34;
+    ]
+    return len(complete)
+
+
+@app.get(&#34;/signature_count&#34;)
+async def get_signatures_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is True
+    ]
+    return len(signatures)
+
+
+@app.get(&#34;/requires_signature_count&#34;)
+async def get_requires_signatures_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions where signatures are
+    still required.
+    &#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is not True
+    ]
+    return len(signatures)
+
+
+@app.get(&#34;/signature_files&#34;, response_class=HTMLResponse)
+async def get_signature_files():
+    &#34;&#34;&#34;List the signature files associated with the latest PRONOM
+    release.
+    &#34;&#34;&#34;
+    summary = _get_summary()
+    standard_sig = summary.get(&#34;sig_file&#34;)
+    container_sig = summary.get(&#34;container_sig&#34;)
+    return (
+        f&#34;&lt;br&gt;&#34;
+        f&#34;&lt;ul&gt;&#34;
+        f&#34;&lt;li&gt;Standard signature file: &lt;a href=&#39;{standard_sig}&#39;&gt;{standard_sig}&lt;/a&gt;&lt;/li&gt;&#34;
+        f&#34;&lt;li&gt;Container signature file: &lt;a href=&#39;{container_sig}&#39;&gt;{container_sig}&lt;/a&gt;&lt;/li&gt;&#34;
+        f&#34;&lt;/ul&gt;&#34;
+    )
+
+
+def _make_url_from_identifier(identifier: str) -&gt; str:
+    &#34;&#34;&#34;Make a PRONOM URL from its inentifier.&#34;&#34;&#34;
+    url_pattern = &#34;https://www.nationalarchives.gov.uk/PRONOM/&#34;
+    return f&#34;&lt;a href=&#39;{url_pattern}{identifier}&#39;&gt;{identifier}&lt;/a&gt;&#34;
+
+
+def _make_formatted_list_from_summary_items(summary_objs: list) -&gt; str:
+    &#34;&#34;&#34;Make a formatted list from a list of summary items.
+
+    Example item:
+
+    ```json
+            {
+            &#34;name&#34;: &#34;Microsoft Word for Macintosh Document 3.0&#34;,
+            &#34;description&#34;: &#34;incomplete&#34;,
+            &#34;signature&#34;: true,
+            &#34;identifier&#34;: &#34;x-fmt/1&#34;
+        }
+    ```
+    &#34;&#34;&#34;
+    list_obj = [
+        f&#34;{item[&#39;name&#39;]} ({_make_url_from_identifier(item[&#39;identifier&#39;])})&lt;br&gt;&#34;
+        for item in summary_objs
+    ]
+    return &#34;&#34;.join(list_obj)
+
+
+@app.get(&#34;/incomplete_descriptions&#34;, response_class=HTMLResponse)
+async def get_incomplete_descriptions():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] != &#34;complete&#34;
+    ]
+    return _make_formatted_list_from_summary_items(complete)
+
+
+@app.get(&#34;/requires_signatures&#34;, response_class=HTMLResponse)
+async def get_requires_signatures():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is not True
+    ]
+    return _make_formatted_list_from_summary_items(signatures)
 
 
 def _get_auth():
@@ -272,7 +425,7 @@ def main():
         &#34;--port&#34;,
         help=&#34;provide a port on which to run the app&#34;,
         required=False,
-        default=8000,
+        default=26000,
     )
 
     args = parser.parse_args()
@@ -281,13 +434,15 @@ def main():
         &#34;attempting API startup, try setting `--port` arg if there are any issues&#34;
     )
 
-    import_str = &#34;pronom_stats&#34;
+    import_str = &#34;src.pronom_stats.pronom_stats&#34;
     try:
         importlib.import_module(import_str)
         import_str = f&#34;{import_str}:app&#34;
     except ModuleNotFoundError:
-        import_str = &#34;src.pronom_stats.pronom_stats:app&#34;
+        import_str = &#34;pronom_stats.pronom_stats:app&#34;
         logger.info(&#34;importing from %s&#34;, import_str)
+
+    logging.info(&#34;ensure that environment is configured (e.g. SERVER_AUTH=&#39;badf00d&#39;)&#34;)
 
     uvicorn.run(
         import_str,
@@ -295,7 +450,7 @@ def main():
         port=int(args.port),
         access_log=False,
         log_level=&#34;info&#34;,
-        reload=False,
+        reload=True,
     )
 
 
@@ -310,6 +465,85 @@ if __name__ == &#34;__main__&#34;:
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
+<dt id="src.pronom_stats.pronom_stats.get_complete_descriptions_count"><code class="name flex">
+<span>async def <span class="ident">get_complete_descriptions_count</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions with status complete.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/complete_description_count&#34;)
+async def get_complete_descriptions_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] == &#34;complete&#34;
+    ]
+    return len(complete)</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_complete_records_count"><code class="name flex">
+<span>async def <span class="ident">get_complete_records_count</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the PRONOM version from the database.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/records_count&#34;, tags=[TAG_PRONOM])
+async def get_complete_records_count():
+    &#34;&#34;&#34;Retrieve the PRONOM version from the database.&#34;&#34;&#34;
+    summary = _get_summary()
+    return len(summary.get(&#34;pronom_data&#34;, []))</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_incomplete_descriptions"><code class="name flex">
+<span>async def <span class="ident">get_incomplete_descriptions</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions with status complete.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/incomplete_descriptions&#34;, response_class=HTMLResponse)
+async def get_incomplete_descriptions():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] != &#34;complete&#34;
+    ]
+    return _make_formatted_list_from_summary_items(complete)</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_incomplete_descriptions_count"><code class="name flex">
+<span>async def <span class="ident">get_incomplete_descriptions_count</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions with status complete.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/incomplete_description_count&#34;)
+async def get_incomplete_descriptions_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get(&#34;pronom_data&#34;, [])
+        if item[&#34;description&#34;] != &#34;complete&#34;
+    ]
+    return len(complete)</code></pre>
+</details>
+</dd>
 <dt id="src.pronom_stats.pronom_stats.get_pronom_summary"><code class="name flex">
 <span>async def <span class="ident">get_pronom_summary</span></span>(<span>)</span>
 </code></dt>
@@ -391,7 +625,7 @@ async def get_pronom_summary():
 </details>
 </dd>
 <dt id="src.pronom_stats.pronom_stats.get_pronom_version"><code class="name flex">
-<span>async def <span class="ident">get_pronom_version</span></span>(<span>)</span>
+<span>async def <span class="ident">get_pronom_version</span></span>(<span>) ‑> str</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Retrieve the PRONOM version from the database.</p></div>
@@ -399,12 +633,99 @@ async def get_pronom_summary():
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@app.get(&#34;/pronom_version&#34;, tags=[TAG_PRONOM])
-async def get_pronom_version():
+<pre><code class="python">@app.get(&#34;/pronom_version&#34;, tags=[TAG_PRONOM], response_class=HTMLResponse)
+async def get_pronom_version() -&gt; str:
     &#34;&#34;&#34;Retrieve the PRONOM version from the database.&#34;&#34;&#34;
     res = app.cur.execute(&#34;select version from pronom order by rowid desc limit 1;&#34;)
     res = res.fetchone()
     return res[0]</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_requires_signatures"><code class="name flex">
+<span>async def <span class="ident">get_requires_signatures</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions with status complete.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/requires_signatures&#34;, response_class=HTMLResponse)
+async def get_requires_signatures():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is not True
+    ]
+    return _make_formatted_list_from_summary_items(signatures)</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_requires_signatures_count"><code class="name flex">
+<span>async def <span class="ident">get_requires_signatures_count</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions where signatures are
+still required.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/requires_signature_count&#34;)
+async def get_requires_signatures_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions where signatures are
+    still required.
+    &#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is not True
+    ]
+    return len(signatures)</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_signature_files"><code class="name flex">
+<span>async def <span class="ident">get_signature_files</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>List the signature files associated with the latest PRONOM
+release.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/signature_files&#34;, response_class=HTMLResponse)
+async def get_signature_files():
+    &#34;&#34;&#34;List the signature files associated with the latest PRONOM
+    release.
+    &#34;&#34;&#34;
+    summary = _get_summary()
+    standard_sig = summary.get(&#34;sig_file&#34;)
+    container_sig = summary.get(&#34;container_sig&#34;)
+    return (
+        f&#34;&lt;br&gt;&#34;
+        f&#34;&lt;ul&gt;&#34;
+        f&#34;&lt;li&gt;Standard signature file: &lt;a href=&#39;{standard_sig}&#39;&gt;{standard_sig}&lt;/a&gt;&lt;/li&gt;&#34;
+        f&#34;&lt;li&gt;Container signature file: &lt;a href=&#39;{container_sig}&#39;&gt;{container_sig}&lt;/a&gt;&lt;/li&gt;&#34;
+        f&#34;&lt;/ul&gt;&#34;
+    )</code></pre>
+</details>
+</dd>
+<dt id="src.pronom_stats.pronom_stats.get_signatures_count"><code class="name flex">
+<span>async def <span class="ident">get_signatures_count</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the number of PRONOM descriptions with status complete.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@app.get(&#34;/signature_count&#34;)
+async def get_signatures_count():
+    &#34;&#34;&#34;Retrieve the number of PRONOM descriptions with status complete.&#34;&#34;&#34;
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get(&#34;pronom_data&#34;, []) if item[&#34;signature&#34;] is True
+    ]
+    return len(signatures)</code></pre>
 </details>
 </dd>
 <dt id="src.pronom_stats.pronom_stats.init_db"><code class="name flex">
@@ -466,7 +787,7 @@ async def lifespan(context: FastAPI):
         &#34;--port&#34;,
         help=&#34;provide a port on which to run the app&#34;,
         required=False,
-        default=8000,
+        default=26000,
     )
 
     args = parser.parse_args()
@@ -475,13 +796,15 @@ async def lifespan(context: FastAPI):
         &#34;attempting API startup, try setting `--port` arg if there are any issues&#34;
     )
 
-    import_str = &#34;pronom_stats&#34;
+    import_str = &#34;src.pronom_stats.pronom_stats&#34;
     try:
         importlib.import_module(import_str)
         import_str = f&#34;{import_str}:app&#34;
     except ModuleNotFoundError:
-        import_str = &#34;src.pronom_stats.pronom_stats:app&#34;
+        import_str = &#34;pronom_stats.pronom_stats:app&#34;
         logger.info(&#34;importing from %s&#34;, import_str)
+
+    logging.info(&#34;ensure that environment is configured (e.g. SERVER_AUTH=&#39;badf00d&#39;)&#34;)
 
     uvicorn.run(
         import_str,
@@ -489,7 +812,7 @@ async def lifespan(context: FastAPI):
         port=int(args.port),
         access_log=False,
         log_level=&#34;info&#34;,
-        reload=False,
+        reload=True,
     )</code></pre>
 </details>
 </dd>
@@ -571,8 +894,16 @@ def redirect_root_to_docs():
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
+<li><code><a title="src.pronom_stats.pronom_stats.get_complete_descriptions_count" href="#src.pronom_stats.pronom_stats.get_complete_descriptions_count">get_complete_descriptions_count</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_complete_records_count" href="#src.pronom_stats.pronom_stats.get_complete_records_count">get_complete_records_count</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_incomplete_descriptions" href="#src.pronom_stats.pronom_stats.get_incomplete_descriptions">get_incomplete_descriptions</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_incomplete_descriptions_count" href="#src.pronom_stats.pronom_stats.get_incomplete_descriptions_count">get_incomplete_descriptions_count</a></code></li>
 <li><code><a title="src.pronom_stats.pronom_stats.get_pronom_summary" href="#src.pronom_stats.pronom_stats.get_pronom_summary">get_pronom_summary</a></code></li>
 <li><code><a title="src.pronom_stats.pronom_stats.get_pronom_version" href="#src.pronom_stats.pronom_stats.get_pronom_version">get_pronom_version</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_requires_signatures" href="#src.pronom_stats.pronom_stats.get_requires_signatures">get_requires_signatures</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_requires_signatures_count" href="#src.pronom_stats.pronom_stats.get_requires_signatures_count">get_requires_signatures_count</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_signature_files" href="#src.pronom_stats.pronom_stats.get_signature_files">get_signature_files</a></code></li>
+<li><code><a title="src.pronom_stats.pronom_stats.get_signatures_count" href="#src.pronom_stats.pronom_stats.get_signatures_count">get_signatures_count</a></code></li>
 <li><code><a title="src.pronom_stats.pronom_stats.init_db" href="#src.pronom_stats.pronom_stats.init_db">init_db</a></code></li>
 <li><code><a title="src.pronom_stats.pronom_stats.lifespan" href="#src.pronom_stats.pronom_stats.lifespan">lifespan</a></code></li>
 <li><code><a title="src.pronom_stats.pronom_stats.main" href="#src.pronom_stats.pronom_stats.main">main</a></code></li>

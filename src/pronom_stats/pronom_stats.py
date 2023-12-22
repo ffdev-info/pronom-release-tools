@@ -20,6 +20,7 @@ of this app.
 # pylint: disable=E1101,R0801
 
 import argparse
+import functools
 import hashlib
 import importlib
 import json
@@ -33,7 +34,8 @@ from typing import Annotated, Final
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 # Set up logging.
 logging.basicConfig(
@@ -63,8 +65,17 @@ async def init_db(cur: sqlite3.Cursor):
         pass
 
 
+def _escape_ins(ins: str) -> str:
+    """Provides a way to escape the data we're inserting. It's a bit
+    of a hack. First created to handle single-quotes but will
+    potentially be needed for other character types.
+    """
+    return ins.replace("'", "")
+
+
 async def _insert_version(version: str, summary: str):
     """Deleteme"""
+    summary = _escape_ins(summary)
     ins = f"insert into pronom (version, summary) values ('{version}', '{summary}');"
     app.cur.execute(ins)
     app.cur.execute("commit;")
@@ -73,11 +84,13 @@ async def _insert_version(version: str, summary: str):
 
 def _load_config():
     """Ensure the config is properly loaded."""
-    load_dotenv(ENV_FILE)
+    load_dotenv(ENV_FILE, override=False, verbose=True)
     try:
         os.environ["SERVER_AUTH"]
     except KeyError as err:
-        logging.error("environment needs configuring: %s", err)
+        logging.error(
+            "environment needs configuring: %s (e.g. SERVER_AUTH='badf00d')", err
+        )
         raise err
 
 
@@ -117,6 +130,19 @@ app = FastAPI(
     },
     openapi_tags=tags_metadata,
     lifespan=lifespan,
+)
+
+origins = [
+    "http://127.0.0.1:26001",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Content-type"],
 )
 
 
@@ -172,12 +198,139 @@ async def get_pronom_summary():
     return ret
 
 
-@app.get("/pronom_version", tags=[TAG_PRONOM])
-async def get_pronom_version():
+@app.get("/pronom_version", tags=[TAG_PRONOM], response_class=HTMLResponse)
+async def get_pronom_version() -> str:
     """Retrieve the PRONOM version from the database."""
     res = app.cur.execute("select version from pronom order by rowid desc limit 1;")
     res = res.fetchone()
     return res[0]
+
+
+@functools.cache
+def _get_summary() -> dict:
+    """Return the PRONOM summary from the database."""
+    res = app.cur.execute("select summary from pronom order by rowid desc limit 1;")
+    res = res.fetchone()
+    return json.loads(res[0])
+
+
+@app.get("/records_count", tags=[TAG_PRONOM])
+async def get_complete_records_count():
+    """Retrieve the PRONOM version from the database."""
+    summary = _get_summary()
+    return len(summary.get("pronom_data", []))
+
+
+@app.get("/complete_description_count")
+async def get_complete_descriptions_count():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] == "complete"
+    ]
+    return len(complete)
+
+
+@app.get("/incomplete_description_count")
+async def get_incomplete_descriptions_count():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] != "complete"
+    ]
+    return len(complete)
+
+
+@app.get("/signature_count")
+async def get_signatures_count():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get("pronom_data", []) if item["signature"] is True
+    ]
+    return len(signatures)
+
+
+@app.get("/requires_signature_count")
+async def get_requires_signatures_count():
+    """Retrieve the number of PRONOM descriptions where signatures are
+    still required.
+    """
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+    ]
+    return len(signatures)
+
+
+@app.get("/signature_files", response_class=HTMLResponse)
+async def get_signature_files():
+    """List the signature files associated with the latest PRONOM
+    release.
+    """
+    summary = _get_summary()
+    standard_sig = summary.get("sig_file")
+    container_sig = summary.get("container_sig")
+    return (
+        f"<br>"
+        f"<ul>"
+        f"<li>Standard signature file: <a href='{standard_sig}'>{standard_sig}</a></li>"
+        f"<li>Container signature file: <a href='{container_sig}'>{container_sig}</a></li>"
+        f"</ul>"
+    )
+
+
+def _make_url_from_identifier(identifier: str) -> str:
+    """Make a PRONOM URL from its inentifier."""
+    url_pattern = "https://www.nationalarchives.gov.uk/PRONOM/"
+    return f"<a href='{url_pattern}{identifier}'>{identifier}</a>"
+
+
+def _make_formatted_list_from_summary_items(summary_objs: list) -> str:
+    """Make a formatted list from a list of summary items.
+
+    Example item:
+
+    ```json
+            {
+            "name": "Microsoft Word for Macintosh Document 3.0",
+            "description": "incomplete",
+            "signature": true,
+            "identifier": "x-fmt/1"
+        }
+    ```
+    """
+    list_obj = [
+        f"{item['name']} ({_make_url_from_identifier(item['identifier'])})<br>"
+        for item in summary_objs
+    ]
+    return "".join(list_obj)
+
+
+@app.get("/incomplete_descriptions", response_class=HTMLResponse)
+async def get_incomplete_descriptions():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] != "complete"
+    ]
+    return _make_formatted_list_from_summary_items(complete)
+
+
+@app.get("/requires_signatures", response_class=HTMLResponse)
+async def get_requires_signatures():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+    ]
+    return _make_formatted_list_from_summary_items(signatures)
 
 
 def _get_auth():
@@ -231,7 +384,7 @@ def main():
         "--port",
         help="provide a port on which to run the app",
         required=False,
-        default=8000,
+        default=26000,
     )
 
     args = parser.parse_args()
@@ -240,13 +393,15 @@ def main():
         "attempting API startup, try setting `--port` arg if there are any issues"
     )
 
-    import_str = "pronom_stats"
+    import_str = "src.pronom_stats.pronom_stats"
     try:
         importlib.import_module(import_str)
         import_str = f"{import_str}:app"
     except ModuleNotFoundError:
-        import_str = "src.pronom_stats.pronom_stats:app"
+        import_str = "pronom_stats.pronom_stats:app"
         logger.info("importing from %s", import_str)
+
+    logging.info("ensure that environment is configured (e.g. SERVER_AUTH='badf00d')")
 
     uvicorn.run(
         import_str,
@@ -254,7 +409,7 @@ def main():
         port=int(args.port),
         access_log=False,
         log_level="info",
-        reload=False,
+        reload=True,
     )
 
 

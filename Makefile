@@ -24,10 +24,13 @@ package-upload: clean package-deps package-check            ## Upload package to
 
 package: package-upload
 
+pre-commit:     											## Run all pre-commit checks
+	pre-commit run --all-files
+
 docs:                                                       ## Generate documentation
 	pdoc3 --html src/ --force
 
-serve-docs:                                                 ## Serve the dcumentation
+serve-docs:                                                 ## Serve the documentation
 	python3 -m http.server --directory html/src/
 
 clean:                                                      ## Clean the package directory

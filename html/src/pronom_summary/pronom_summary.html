@@ -37,6 +37,17 @@ from pathlib import Path
 from typing import Final, Union
 from xml.etree.ElementTree import ParseError
 
+try:
+    try:
+        from src.pronom_tools import pronom_tools
+    except ModuleNotFoundError:
+        from pronom_tools import pronom_tools
+except ImportError:
+    # Module is likely being called from PRONOM tools and so doesn&#39;t
+    # require this import.
+    pass
+
+
 NAMESPACES: Final[str] = {&#34;pro&#34;: &#34;http://pronom.nationalarchives.gov.uk&#34;}
 DEPRECATED: Final[str] = &#34;deprecated&#34;
 OUTLINE: Final[str] = &#34;outline&#34;
@@ -174,10 +185,13 @@ async def parse_pronom(pronom_export: str, container_signature: str) -&gt; list[
 
 def main():
     &#34;&#34;&#34;Primary entry point for this script.&#34;&#34;&#34;
+
+    rel = pronom_tools.check_existing()
+    container_name = pronom_tools.download_container(rel=rel)
     pronom_summary = asyncio.run(
         parse_pronom(
             pronom_export=&#34;pronom-export&#34;,
-            container_signature=&#34;container-signature-20230822.xml&#34;,
+            container_signature=container_name,
         )
     )
     print(json.dumps(pronom_summary, indent=2))
@@ -224,10 +238,13 @@ if __name__ == &#34;__main__&#34;:
 </summary>
 <pre><code class="python">def main():
     &#34;&#34;&#34;Primary entry point for this script.&#34;&#34;&#34;
+
+    rel = pronom_tools.check_existing()
+    container_name = pronom_tools.download_container(rel=rel)
     pronom_summary = asyncio.run(
         parse_pronom(
             pronom_export=&#34;pronom-export&#34;,
-            container_signature=&#34;container-signature-20230822.xml&#34;,
+            container_signature=container_name,
         )
     )
     print(json.dumps(pronom_summary, indent=2))</code></pre>

@@ -24,6 +24,11 @@ ignore-patterns=
     ^(.+).html,
     ^(.+).htm,
     ^(.+).txt,
+    ^(.+).css,
+    ^(.+).js,
+    ^(.+).svg,
+    ^(.+).less,
+    ^(.+).ttf,
     ^\.,
 
 ignore-paths=

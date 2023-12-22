@@ -6,18 +6,6 @@ Tools for working with PRONOM releases.
 
 A summary of the tooling included.
 
-### PRONOM Cron
-
-PRONOM Cron can be run as a cron task to update the pronom summary database
-on a regular basis. Run with `-i` to initialize, and from there, run it `n-`
-times a day to look for a new PRONOM release.
-
-To run:
-
-```sh
-python -m src.pronom_cron.pronom_cron
-```
-
 ### PRONOM Summary
 
 Summarize a PRONOM by comparing the PRONOM dataset with its corresponding
@@ -101,6 +89,58 @@ To run:
 python -m src.pronom_stats.pronom_stats
 ```
 
+#### Environment
+
+A `pronom.emv` file is needed that looks as follows:
+
+```env
+# Config for PRONOM tools.
+SERVER_AUTH=badf00d
+SERVER_ADDR=http://127.0.0.1:26000
+```
+
+#### Ports
+
+Ports that are used by this application:
+
+```text
+pronom api: 26000
+pronom summary site: 26001
+```
+
+### PRONOM Cron
+
+PRONOM Cron can be run as a cron task to update the pronom summary database
+on a regular basis. Run with `-i` to initialize, and from there, run it `n-`
+times a day to look for a new PRONOM release.
+
+To run:
+
+```sh
+python -m src.pronom_cron.pronom_cron
+```
+
+#### Example cron
+
+> NB. the following example requires that cron-stats is setup and running so
+that the stats downloaded during the cron job can be stored.
+
+To test for a new PRONOM release every four hours run:
+
+```sh
+crontab -e
+```
+
+And then add a task to run every four hours.
+
+```cron
+0 */4 * * * pronom-cron
+```
+
+For more cron examples see [cron guru][cron-1],
+
+[cron-1]: https://crontab.guru/examples.html
+
 ## Developer install
 
 ### pip
@@ -166,7 +206,8 @@ package-deps                   Upgrade dependencies for packaging
 package-source                 Package the source code
 package-upload                 Upload package to pypi
 package-upload-test            Upload package to test.pypi
-serve-docs                     Serve the dcumentation
+pre-commit                     Run all pre-commit checks
+serve-docs                     Serve the documentation
 tar-source                     Package repository as tar for easy distribution
 ```
 
