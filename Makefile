@@ -28,7 +28,7 @@ pre-commit:     											## Run all pre-commit checks
 	pre-commit run --all-files
 
 docs:                                                       ## Generate documentation
-	pdoc3 --html src/ --force
+	pdoc3 --force --html -o docs src/
 
 serve-docs:                                                 ## Serve the documentation
 	python3 -m http.server --directory html/src/
