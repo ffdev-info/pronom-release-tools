@@ -134,6 +134,7 @@ app = FastAPI(
 
 origins = [
     "http://127.0.0.1:26001",
+    "*",
 ]
 
 app.add_middleware(
