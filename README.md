@@ -2,6 +2,33 @@
 
 Tools for working with PRONOM releases.
 
+<!--markdownlint-disable -->
+
+* [PRONOM Release Tools](#pronom-release-tools)
+   * [Tooling](#tooling)
+      * [PRONOM Summary](#pronom-summary)
+      * [PRONOM Tools](#pronom-tools)
+         * [Check existing](#check-existing)
+         * [Release stats](#release-stats)
+      * [PRONOM Stats](#pronom-stats)
+         * [Environment](#environment)
+         * [Ports](#ports)
+      * [PRONOM Cron](#pronom-cron)
+         * [Example cron](#example-cron)
+   * [Developer install](#developer-install)
+      * [pip](#pip)
+      * [tox](#tox)
+         * [Run tests (all)](#run-tests-all)
+         * [Run tests-only](#run-tests-only)
+         * [Run linting-only](#run-linting-only)
+      * [pre-commit](#pre-commit)
+   * [Packaging](#packaging)
+      * [pyproject.toml](#pyprojecttoml)
+      * [Local packaging](#local-packaging)
+      * [Publishing](#publishing)
+
+<!--markdownlint-enable -->
+
 ## Tooling
 
 A summary of the tooling included.
