@@ -17,10 +17,10 @@ package-check: clean package-source                         ## Check the distrib
 	twine check dist/*
 
 package-upload-test: clean package-deps package-check       ## Upload package to test.pypi
-	twine upload dist/* --repository-url https://test.pypi.org/legacy/ --verbose
+	twine upload dist/* --repository testpypi --verbose
 
 package-upload: clean package-deps package-check            ## Upload package to pypi
-	twine upload dist/* --repository-url https://upload.pypi.org/legacy/ --verbose
+	twine upload dist/* --repository pypi --verbose
 
 package: package-upload
 
