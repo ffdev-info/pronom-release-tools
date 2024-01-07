@@ -4,54 +4,44 @@ Tools for working with PRONOM releases.
 
 <!--markdownlint-disable -->
 
-* [PRONOM Release Tools](#pronom-release-tools)
-   * [Tooling](#tooling)
-      * [PRONOM Summary](#pronom-summary)
-      * [PRONOM Tools](#pronom-tools)
-         * [Check existing](#check-existing)
-         * [Release stats](#release-stats)
-      * [PRONOM Stats](#pronom-stats)
-         * [Environment](#environment)
-         * [Ports](#ports)
-      * [PRONOM Cron](#pronom-cron)
-         * [Example cron](#example-cron)
-   * [Developer install](#developer-install)
-      * [pip](#pip)
-      * [tox](#tox)
-         * [Run tests (all)](#run-tests-all)
-         * [Run tests-only](#run-tests-only)
-         * [Run linting-only](#run-linting-only)
-      * [pre-commit](#pre-commit)
-   * [Packaging](#packaging)
-      * [pyproject.toml](#pyprojecttoml)
-      * [Local packaging](#local-packaging)
-      * [Publishing](#publishing)
+- [PRONOM Release Tools](#pronom-release-tools)
+  * [Tooling](#tooling)
+    + [PRONOM Tools](#pronom-tools)
+      - [Check existing](#check-existing)
+      - [Release stats](#release-stats)
+    + [PRONOM Stats](#pronom-stats)
+      - [Environment](#environment)
+      - [Ports](#ports)
+    + [PRONOM Cron](#pronom-cron)
+      - [Example cron](#example-cron)
+    + [PRONOM Summary](#pronom-summary)
+  * [Developer install](#developer-install)
+    + [pip](#pip)
+    + [tox](#tox)
+      - [Run tests (all)](#run-tests--all-)
+      - [Run tests-only](#run-tests-only)
+      - [Run linting-only](#run-linting-only)
+    + [pre-commit](#pre-commit)
+  * [Packaging](#packaging)
+    + [pyproject.toml](#pyprojecttoml)
+    + [Local packaging](#local-packaging)
+    + [Publishing](#publishing)
 
 <!--markdownlint-enable -->
 
 ## Tooling
 
-A summary of the tooling included.
+A summary of the tooling included. A total of three tools are packaged in this
+repository, and they can all be run with the `-h` flag to see what options
+are available. The three tools are:
 
-### PRONOM Summary
-
-Summarize a PRONOM by comparing the PRONOM dataset with its corresponding
-signature files. The output for a single file format looks as follows:
-
-```json
-  {
-    "name": "yEnc Encoded File",
-    "description": "complete",
-    "signature": true,
-    "identifier": "fmt/1100"
-  }
+```text
+pronom-tools
+pronom-stats
+pronom-cron
 ```
 
-To run:
-
-```sh
-python -m src.pronom_summary.pronom_summary
-```
+More information can be found about those below.
 
 ### PRONOM Tools
 
@@ -167,6 +157,26 @@ And then add a task to run every four hours.
 For more cron examples see [cron guru][cron-1],
 
 [cron-1]: https://crontab.guru/examples.html
+
+### PRONOM Summary
+
+Summarize a PRONOM by comparing the PRONOM dataset with its corresponding
+signature files. The output for a single file format looks as follows:
+
+```json
+  {
+    "name": "yEnc Encoded File",
+    "description": "complete",
+    "signature": true,
+    "identifier": "fmt/1100"
+  }
+```
+
+To run:
+
+```sh
+python -m src.pronom_summary.pronom_summary
+```
 
 ## Developer install
 
