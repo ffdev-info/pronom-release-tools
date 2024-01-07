@@ -4,7 +4,7 @@ Tools for working with PRONOM releases.
 
 <!--markdownlint-disable -->
 
-- [PRONOM Release Tools](#pronom-release-tools)
+* [PRONOM Release Tools](#pronom-release-tools)
   * [Tooling](#tooling)
     + [PRONOM Tools](#pronom-tools)
       - [Check existing](#check-existing)
@@ -27,7 +27,7 @@ Tools for working with PRONOM releases.
     + [Local packaging](#local-packaging)
     + [Publishing](#publishing)
 
-<!--markdownlint-enable -->
+<!-- markdownlint-enable -->
 
 ## Tooling
 
@@ -41,7 +41,11 @@ pronom-stats
 pronom-cron
 ```
 
-More information can be found about those below.
+These can be installed from the Python Packaging Index (PyPi) [here][pypi-dl-1].
+
+[pypi-dl-1]: https://pypi.org/project/pronom-tools/
+
+More information can be found about the commands below.
 
 ### PRONOM Tools
 
