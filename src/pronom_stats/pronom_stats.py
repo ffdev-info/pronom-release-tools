@@ -268,10 +268,24 @@ async def get_requires_signatures_count():
     return len(signatures)
 
 
-@app.get("/signature_files", response_class=HTMLResponse)
+@app.get("/signature_files")
 async def get_signature_files():
     """List the signature files associated with the latest PRONOM
-    release.
+    release. Format the output as HTML.
+    """
+    summary = _get_summary()
+    standard_sig = summary.get("sig_file")
+    container_sig = summary.get("container_sig")
+    return {
+        "standard signature": standard_sig,
+        "container signature": container_sig,
+    }
+
+
+@app.get("/signature_files_hx", response_class=HTMLResponse)
+async def get_signature_files_hx():
+    """List the signature files associated with the latest PRONOM
+    release. Format the output as HTML.
     """
     summary = _get_summary()
     standard_sig = summary.get("sig_file")
@@ -312,8 +326,20 @@ def _make_formatted_list_from_summary_items(summary_objs: list) -> str:
     return "".join(list_obj)
 
 
-@app.get("/incomplete_descriptions", response_class=HTMLResponse)
+@app.get("/incomplete_descriptions")
 async def get_incomplete_descriptions():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    complete = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] != "complete"
+    ]
+    return complete
+
+
+@app.get("/incomplete_descriptions_hx", response_class=HTMLResponse)
+async def get_incomplete_descriptions_hx():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
     complete = [
@@ -324,8 +350,18 @@ async def get_incomplete_descriptions():
     return _make_formatted_list_from_summary_items(complete)
 
 
-@app.get("/requires_signatures", response_class=HTMLResponse)
+@app.get("/requires_signatures")
 async def get_requires_signatures():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    signatures = [
+        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+    ]
+    return signatures
+
+
+@app.get("/requires_signatures_hx", response_class=HTMLResponse)
+async def get_requires_signatures_hx():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
     signatures = [
