@@ -27,9 +27,9 @@ Summary outputs look as follows:
     }
 ```
 
-For each PRONOM record `container signautre` is optional, if either
-`signature` or `container_signature` is `True` the record is considered
-to have a signature for identification.
+For each PRONOM record if either `signature` or `container_signature`
+is `True` the record is considered to have a signature for
+identification and this is recorded in the 'signature' field.
 
 Descriptions have the following statuses:
 
@@ -38,7 +38,7 @@ Descriptions have the following statuses:
     OUTLINE: Final[str] = "outline"
     COMPLETE: Final[str] = "complete"
 ```
-s
+
 Assumption: Container signature file appears online before the release
 notes. If it doesn't then this information will be out of sync from
 one another.

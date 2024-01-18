@@ -1,11 +1,13 @@
 """Test PRONOM summary code."""
 
+import os
 from typing import Final
 
 import pytest
 
 from src.pronom_summary.pronom_summary import (
     PRONOMException,
+    parse_pronom,
     summarize_container_xml,
     summarize_xml,
 )
@@ -114,7 +116,6 @@ def test_summarize(xml, expected, exception, tmp_path):
             res = summarize_xml(xml_path)
         return
     res = summarize_xml(xml_path)
-    print(res)
     assert res == expected
 
 
@@ -188,4 +189,60 @@ def test_container_match(tmp_path):
         "fmt/412",
         "fmt/412",
         "x-fmt/412",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_pronom():
+    """Test the overall summary function to ensure that it is accurate."""
+
+    export = os.path.join("tests", "fixtures", "export")
+    container = os.path.join(
+        "tests", "fixtures", "container", "container-signature-20231127.xml"
+    )
+
+    res = await parse_pronom(pronom_export=export, container_signature=container)
+    assert res == [
+        {
+            "name": "Broadcast WAVE 0 Generic",
+            "description": "complete",
+            "signature": True,
+            "identifier": "fmt/1",
+        },
+        {
+            "name": "Broderbund The Print Shop/PrintMaster/American Greetings Project 10-23",
+            "description": "complete",
+            "signature": True,
+            "identifier": "fmt/1300",
+        },
+        {
+            "name": "Serif PagePlus Publication 6",
+            "description": "complete",
+            "signature": True,
+            "identifier": "fmt/674",
+        },
+        {
+            "name": "Tagged Image File Format 6",
+            "description": "deprecated",
+            "signature": False,
+            "identifier": "fmt/10",
+        },
+        {
+            "name": "Waveform Audio",
+            "description": "complete",
+            "signature": True,
+            "identifier": "fmt/6",
+        },
+        {
+            "name": "dBASE Database IV",
+            "description": "complete",
+            "signature": True,
+            "identifier": "x-fmt/10",
+        },
+        {
+            "name": "form*Z Project File",
+            "description": "outline",
+            "signature": False,
+            "identifier": "x-fmt/442",
+        },
     ]

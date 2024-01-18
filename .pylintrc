@@ -29,6 +29,7 @@ ignore-patterns=
     ^(.+).svg,
     ^(.+).less,
     ^(.+).ttf,
+    ^(.+).xml,
     ^\.,
 
 ignore-paths=

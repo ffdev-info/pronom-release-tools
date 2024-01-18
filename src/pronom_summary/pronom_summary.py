@@ -150,7 +150,7 @@ async def parse_pronom(pronom_export: str, container_signature: str) -> list[dic
     for item in pronom_summary:
         if item.get("identifier") not in container_summary:
             continue
-        item["container signauture"] = True
+        item["signature"] = True
     return sorted(pronom_summary, key=lambda item: item["name"])
 
 
