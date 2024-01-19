@@ -111,6 +111,9 @@ API_DESCRIPTION: Final[str] = "ffdev.info PRONOM API"
 
 # OpenAPI tags delineating the documentation.
 TAG_PRONOM: Final[str] = "pronom"
+TAG_STATISTICS: Final[str] = "statistics"
+TAG_REPORTS: Final[str] = "reports"
+TAG_HTMX: Final[str] = "htmx"
 
 # Metadata for each of the tags in the OpenAPI specification. To order
 # their display on the page, order the tags in this block.
@@ -119,12 +122,24 @@ tags_metadata = [
         "name": TAG_PRONOM,
         "description": "Manage PRONOM data",
     },
+    {
+        "name": TAG_STATISTICS,
+        "description": "PRONOM statistics",
+    },
+    {
+        "name": TAG_REPORTS,
+        "description": "PRONOM reports",
+    },
+    {
+        "name": TAG_HTMX,
+        "description": "Endpoints designed to be used with HTML elements",
+    },
 ]
 
 app = FastAPI(
     title="api.pronom.ffdev.info",
     description=API_DESCRIPTION,
-    version="0.0.1",
+    version="1.0.0",
     contact={
         "Github": "https://github.com/ross-spencer/",
     },
@@ -215,14 +230,14 @@ def _get_summary() -> dict:
     return json.loads(res[0])
 
 
-@app.get("/records_count", tags=[TAG_PRONOM])
+@app.get("/records_count", tags=[TAG_STATISTICS])
 async def get_complete_records_count():
     """Retrieve the PRONOM version from the database."""
     summary = _get_summary()
     return len(summary.get("pronom_data", []))
 
 
-@app.get("/complete_description_count")
+@app.get("/complete_description_count", tags=[TAG_STATISTICS])
 async def get_complete_descriptions_count():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -234,7 +249,7 @@ async def get_complete_descriptions_count():
     return len(complete)
 
 
-@app.get("/incomplete_description_count")
+@app.get("/incomplete_description_count", tags=[TAG_STATISTICS])
 async def get_incomplete_descriptions_count():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -246,7 +261,7 @@ async def get_incomplete_descriptions_count():
     return len(complete)
 
 
-@app.get("/signature_count")
+@app.get("/signature_count", tags=[TAG_STATISTICS])
 async def get_signatures_count():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -256,7 +271,7 @@ async def get_signatures_count():
     return len(signatures)
 
 
-@app.get("/requires_signature_count")
+@app.get("/requires_signature_count", tags=[TAG_STATISTICS])
 async def get_requires_signatures_count():
     """Retrieve the number of PRONOM descriptions where signatures are
     still required.
@@ -268,7 +283,7 @@ async def get_requires_signatures_count():
     return len(signatures)
 
 
-@app.get("/signature_files")
+@app.get("/signature_files", tags=[TAG_PRONOM])
 async def get_signature_files():
     """List the signature files associated with the latest PRONOM
     release. Format the output as HTML.
@@ -282,7 +297,7 @@ async def get_signature_files():
     }
 
 
-@app.get("/signature_files_hx", response_class=HTMLResponse)
+@app.get("/signature_files_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
 async def get_signature_files_hx():
     """List the signature files associated with the latest PRONOM
     release. Format the output as HTML.
@@ -326,7 +341,7 @@ def _make_formatted_list_from_summary_items(summary_objs: list) -> str:
     return "".join(list_obj)
 
 
-@app.get("/incomplete_descriptions")
+@app.get("/incomplete_descriptions", tags=[TAG_REPORTS])
 async def get_incomplete_descriptions():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -338,7 +353,7 @@ async def get_incomplete_descriptions():
     return complete
 
 
-@app.get("/incomplete_descriptions_hx", response_class=HTMLResponse)
+@app.get("/incomplete_descriptions_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
 async def get_incomplete_descriptions_hx():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -350,7 +365,7 @@ async def get_incomplete_descriptions_hx():
     return _make_formatted_list_from_summary_items(complete)
 
 
-@app.get("/requires_signatures")
+@app.get("/requires_signatures", tags=[TAG_REPORTS])
 async def get_requires_signatures():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -360,7 +375,7 @@ async def get_requires_signatures():
     return signatures
 
 
-@app.get("/requires_signatures_hx", response_class=HTMLResponse)
+@app.get("/requires_signatures_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
 async def get_requires_signatures_hx():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
@@ -368,6 +383,30 @@ async def get_requires_signatures_hx():
         item for item in summary.get("pronom_data", []) if item["signature"] is not True
     ]
     return _make_formatted_list_from_summary_items(signatures)
+
+
+@app.get("/get_deprecated", tags=[TAG_REPORTS])
+async def get_deprecated():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    deprecated = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] == "deprecated"
+    ]
+    return deprecated
+
+
+@app.get("/get_deprecated_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
+async def get_deprecated_hx():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    deprecated = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] == "deprecated"
+    ]
+    return _make_formatted_list_from_summary_items(deprecated)
 
 
 def _get_auth():
