@@ -43,6 +43,7 @@
         "gmtime",
         "HTMX",
         "levelname",
-        "puid"
+        "puid",
+        "rowid"
     ]
 }

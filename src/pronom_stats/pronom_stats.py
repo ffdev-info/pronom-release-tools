@@ -33,7 +33,7 @@ from typing import Annotated, Final
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -170,6 +170,14 @@ def redirect_root_to_docs():
     return RedirectResponse(url="/docs")
 
 
+@functools.cache
+def _get_summary() -> dict:
+    """Return the PRONOM summary from the database."""
+    res = app.cur.execute("select summary from pronom order by rowid desc limit 1;")
+    res = res.fetchone()
+    return json.loads(res[0])
+
+
 @app.get("/pronom_summary", tags=[TAG_PRONOM])
 async def get_pronom_summary():
     """Retrieve the PRONOM summary information from the database.
@@ -214,20 +222,37 @@ async def get_pronom_summary():
     return ret
 
 
+@app.get("/pronom_summary_csv", tags=[TAG_REPORTS])
+async def get_pronom_summary_csv():
+    """Return a simplified PRONOM summary as a CSV.
+
+    Example using the Rust-based XSV tool on Linux:
+
+    ```sh
+        curl -sX 'GET' 'https://api.ffdev.info/pronom_summary_csv' \\n
+            -H 'accept: application/json' | xsv table | less
+    ```
+    """
+    res = _get_summary()
+    pronom_data = res.get("pronom_data", [])
+    if not pronom_data and not isinstance(pronom_data, list):
+        return {"error": "problem retrieving PRONOM summary"}
+    headers = pronom_data[0].keys()
+    rows = ""
+    for data in pronom_data:
+        row = ",".join(f"{value}" for value in data.values())
+        rows = f"{rows}\n{row}"
+    headers = ",".join(headers)
+    res = f"{headers}{rows}\n"
+    return Response(content=res, media_type="text/csv")
+
+
 @app.get("/pronom_version", tags=[TAG_PRONOM], response_class=HTMLResponse)
 async def get_pronom_version() -> str:
     """Retrieve the PRONOM version from the database."""
     res = app.cur.execute("select version from pronom order by rowid desc limit 1;")
     res = res.fetchone()
     return res[0]
-
-
-@functools.cache
-def _get_summary() -> dict:
-    """Return the PRONOM summary from the database."""
-    res = app.cur.execute("select summary from pronom order by rowid desc limit 1;")
-    res = res.fetchone()
-    return json.loads(res[0])
 
 
 @app.get("/records_count", tags=[TAG_STATISTICS])
