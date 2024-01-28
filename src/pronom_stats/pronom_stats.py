@@ -281,7 +281,7 @@ async def get_incomplete_descriptions_count():
     complete = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] != "complete"
+        if item["description"] != "complete" and item["description"] != "deprecated"
     ]
     return len(complete)
 
@@ -417,9 +417,21 @@ async def get_deprecated():
     deprecated = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] == "deprecated"
+        if item["description"] == "deprecated" and item["description"] != "deprecated"
     ]
     return deprecated
+
+
+@app.get("/get_deprecated_count", tags=[TAG_STATISTICS])
+async def get_deprecated_count():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    deprecated = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] == "deprecated"
+    ]
+    return len(deprecated)
 
 
 @app.get("/get_deprecated_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
