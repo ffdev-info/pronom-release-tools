@@ -18,7 +18,6 @@ variable.
 # pylint: disable=E1101,R0801
 
 import argparse
-import functools
 import hashlib
 import importlib
 import json
@@ -53,6 +52,7 @@ logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
 ENV_FILE: Final[str] = "pronom.env"
+DEPRECATED: Final[str] = "deprecated"
 
 
 async def init_db(cur: sqlite3.Cursor):
@@ -179,7 +179,6 @@ def redirect_root_to_docs():
     return RedirectResponse(url="/docs")
 
 
-@functools.cache
 def _get_summary() -> dict:
     """Return the PRONOM summary from the database."""
     res = app.cur.execute("select summary from pronom order by rowid desc limit 1;")
@@ -290,7 +289,7 @@ async def get_incomplete_descriptions_count():
     complete = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] != "complete"
+        if item["description"] != "complete" and item["description"] != DEPRECATED
     ]
     return len(complete)
 
@@ -300,7 +299,9 @@ async def get_signatures_count():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
     signatures = [
-        item for item in summary.get("pronom_data", []) if item["signature"] is True
+        item
+        for item in summary.get("pronom_data", [])
+        if item["signature"] is True and item["description"] != DEPRECATED
     ]
     return len(signatures)
 
@@ -312,7 +313,9 @@ async def get_requires_signatures_count():
     """
     summary = _get_summary()
     signatures = [
-        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+        item
+        for item in summary.get("pronom_data", [])
+        if item["signature"] is not True and item["description"] != DEPRECATED
     ]
     return len(signatures)
 
@@ -382,7 +385,7 @@ async def get_incomplete_descriptions():
     complete = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] != "complete"
+        if item["description"] != "complete" and item["description"] != DEPRECATED
     ]
     return complete
 
@@ -394,7 +397,7 @@ async def get_incomplete_descriptions_hx():
     complete = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] != "complete"
+        if item["description"] != "complete" and item["description"] != DEPRECATED
     ]
     return _make_formatted_list_from_summary_items(complete)
 
@@ -404,7 +407,9 @@ async def get_requires_signatures():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
     signatures = [
-        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+        item
+        for item in summary.get("pronom_data", [])
+        if item["signature"] is not True and item["description"] != DEPRECATED
     ]
     return signatures
 
@@ -414,7 +419,9 @@ async def get_requires_signatures_hx():
     """Retrieve the number of PRONOM descriptions with status complete."""
     summary = _get_summary()
     signatures = [
-        item for item in summary.get("pronom_data", []) if item["signature"] is not True
+        item
+        for item in summary.get("pronom_data", [])
+        if item["signature"] is not True and item["description"] != DEPRECATED
     ]
     return _make_formatted_list_from_summary_items(signatures)
 
@@ -426,9 +433,21 @@ async def get_deprecated():
     deprecated = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] == "deprecated"
+        if item["description"] == "deprecated" and item["description"] != DEPRECATED
     ]
     return deprecated
+
+
+@app.get("/get_deprecated_count", tags=[TAG_STATISTICS])
+async def get_deprecated_count():
+    """Retrieve the number of PRONOM descriptions with status complete."""
+    summary = _get_summary()
+    deprecated = [
+        item
+        for item in summary.get("pronom_data", [])
+        if item["description"] == DEPRECATED
+    ]
+    return len(deprecated)
 
 
 @app.get("/get_deprecated_hx", response_class=HTMLResponse, tags=[TAG_HTMX])
@@ -438,7 +457,7 @@ async def get_deprecated_hx():
     deprecated = [
         item
         for item in summary.get("pronom_data", [])
-        if item["description"] == "deprecated"
+        if item["description"] == DEPRECATED
     ]
     return _make_formatted_list_from_summary_items(deprecated)
 
