@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: clean package package-deps package-source package-upload package-wheel tar-source
+.PHONY: clean package package-deps package-source package-upload package-wheel tar-source upgrade
 
 tar-source: package-deps                                    ## Package repository as tar for easy distribution
 	rm -rf tar-src/
@@ -26,6 +26,9 @@ package: package-upload
 
 pre-commit:     											## Run all pre-commit checks
 	pre-commit run --all-files
+
+upgrade:                                                    ## Upgrade pip requirements
+	pip-upgrade
 
 docs:                                                       ## Generate documentation
 	pdoc3 --force --html -o docs src/
