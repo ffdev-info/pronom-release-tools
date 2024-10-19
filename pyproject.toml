@@ -32,6 +32,7 @@ dependencies = [
 pronom-tools = "pronom_tools.pronom_tools:main"
 pronom-stats = "pronom_stats.pronom_stats:main"
 pronom-cron = "pronom_cron.pronom_cron:main"
+pronom-export = "pronom_export.pronom_export:main"
 
 [build-system]
 
