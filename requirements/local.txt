@@ -5,7 +5,7 @@ pdoc3==0.10.0
 pip-upgrader==1.4.15
 pre-commit==3.6.0
 pylint==3.0.3
-pytest==8.0.0
+pytest==7.3.1
 pytest-asyncio==0.23.3
 tox==4.12.1
 pip-upgrade==0.0.6
