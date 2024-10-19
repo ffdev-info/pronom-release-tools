@@ -30,6 +30,7 @@ ignore-patterns=
     ^(.+).less,
     ^(.+).ttf,
     ^(.+).xml,
+    ^justfile,
     ^\.,
 
 ignore-paths=
