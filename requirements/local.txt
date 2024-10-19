@@ -2,9 +2,10 @@
 -r requirements.txt
 
 pdoc3==0.10.0
-pre-commit==3.3.2
-pylint==2.17.4
-pytest==7.3.1
+pip-upgrader==1.4.15
+pre-commit==3.6.0
+pylint==3.0.3
+pytest==8.0.0
 pytest-asyncio==0.23.3
-tox==4.5.2
+tox==4.12.1
 pip-upgrade==0.0.6

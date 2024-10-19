@@ -1,8 +1,8 @@
 # requirements for the production project.
 
-python-dotenv==1.0.0
-fastapi==0.104.1
+python-dotenv==1.0.1
+fastapi==0.109.0
 passlib==1.7.4
 requests==2.31.0
 tenacity==8.2.3
-uvicorn==0.23.2
+uvicorn==0.27.0
