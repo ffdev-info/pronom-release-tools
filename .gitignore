@@ -140,3 +140,6 @@ DROID_SignatureFile_*
 container-signature-*
 *(copy)
 todo
+token-pypi
+*pypi
+token-*
