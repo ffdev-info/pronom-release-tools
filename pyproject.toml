@@ -2,7 +2,7 @@
 
 name = "pronom-tools"
 
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 description = "Tools for working with PRONOM releases"
 readme = "README.md"
@@ -12,14 +12,9 @@ keywords = ["pronom", "digipres", "file-formats"]
 authors = [
   {name = "R. Spencer", email = "all.along.the.watchtower2001+github@gmail.com" },
 ]
-dependencies = [
-    "python-dotenv==1.0.0",
-    "fastapi==0.104.1",
-    "passlib==1.7.4",
-    "requests==2.31.0",
-    "tenacity==8.2.3",
-    "uvicorn==0.23.2",
-]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/requirements.txt"]}
 
 [project.urls]
 
@@ -36,7 +31,7 @@ pronom-export = "pronom_export.pronom_export:main"
 
 [build-system]
 
-requires = ["setuptools>=67.8.0", "wheel", "setuptools_scm[toml]>=7.1.0"]
+requires = ["setuptools>=74.0.0", "wheel>=0.44.0", "setuptools_scm[toml]>=8.1.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
