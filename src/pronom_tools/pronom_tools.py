@@ -9,7 +9,7 @@ Summary outputs look as follows:
     "version": "V116",
     "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
     "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
-    "xpuid_const": "x-fmt/455",
+    "x_puid_const": "x-fmt/455",
     "pronom_data": [
             {
                 "name": "Broadcast WAVE 0 Generic",
@@ -57,7 +57,7 @@ import xml.etree.ElementTree as etree
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, Union
+from typing import Final, Tuple, Union
 
 import requests
 from dotenv import load_dotenv
@@ -66,10 +66,10 @@ from .version import get_version
 
 try:
     from src.pronom_export.pronom_xml_export import export_pronom_data
-    from src.pronom_summary.pronom_summary import parse_pronom
+    from src.pronom_summary.pronom_summary import PRONOMException, parse_pronom
 except ModuleNotFoundError:
     from pronom_export.pronom_xml_export import export_pronom_data
-    from pronom_summary.pronom_summary import parse_pronom
+    from pronom_summary.pronom_summary import PRONOMException, parse_pronom
 
 
 ENV_FILE: Final[str] = "pronom.env"
@@ -93,9 +93,9 @@ logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
 
-RELEASE_NOTE_URL: Final[
-    str
-] = "https://www.nationalarchives.gov.uk/aboutapps/pronom/release-notes.xml"
+RELEASE_NOTE_URL: Final[str] = (
+    "https://www.nationalarchives.gov.uk/aboutapps/pronom/release-notes.xml"
+)
 
 
 USER_AGENT: Final[str] = "pronom-tools/0.0.0"
@@ -109,22 +109,22 @@ CDN_BASE: Final[str] = "https://cdn.nationalarchives.gov.uk/documents/"
 RELEASE_ARCHIVE = (
     "https://www.nationalarchives.gov.uk/aboutapps/pronom/droid-signature-files.htm"
 )
-CONTAINER_UPDATE_URL: Final[
-    str
-] = "https://www.nationalarchives.gov.uk/pronom/container-signature.xml"
+CONTAINER_UPDATE_URL: Final[str] = (
+    "https://www.nationalarchives.gov.uk/pronom/container-signature.xml"
+)
 
 
 @dataclass
 class ReleaseSummary:
     """Release summary object."""
 
-    date: str
+    release_notes_date: str
     latest_puid: str
     version: str
     release_notes: str
     sig_file: str = ""
     container_sig: str = ""
-    xpuid_const: str = "x-fmt/455"
+    x_puid_const: str = "x-fmt/455"
 
     @staticmethod
     def _get_container_formatted_date(date: str):
@@ -220,9 +220,9 @@ def download_standard(rel: ReleaseSummary) -> str:
     return file_name
 
 
-def perform_export(max_puid: int):
+def perform_export(pronom_path: Path, max_puid: int):
     """Export PRONOM xml records."""
-    export_pronom_data(fmt_range=max_puid + 1)
+    export_pronom_data(pronom_path=pronom_path, fmt_range=max_puid + 1)
 
 
 def make_headers() -> dict:
@@ -278,7 +278,7 @@ def parse_http_date(date: str) -> datetime:
     return date_obj
 
 
-def parse_release_xml(release_xml: str) -> (str, str, str):
+def parse_release_xml(release_xml: str) -> Tuple[str, str, str]:
     """Parse the PRONOM release notes XML.
 
     We need three pieces of information from here, the release date and
@@ -305,7 +305,7 @@ def parse_release_xml(release_xml: str) -> (str, str, str):
     return summary
 
 
-def check_release_headers() -> (bool, datetime):
+def check_release_headers() -> Tuple[bool, datetime]:
     """Check the HTTP headers of the release note to see if there is
     a newer date than we have recorded."""
     http_headers = requests.head(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -313,7 +313,12 @@ def check_release_headers() -> (bool, datetime):
         raise PronomToolsException("error reading release headers")
     http_last_modified_date = http_headers.headers.get("Last-modified")
     http_date = parse_http_date(http_last_modified_date)
-    return (http_date.date() == datetime.now().date(), http_date)
+    logger.info("retrieved date from http header: %s", http_date)
+    twentry_four_hours_in_seconds: Final[int] = 86400
+    return (
+        int(datetime.now().timestamp()) - int(http_date.timestamp())
+        <= twentry_four_hours_in_seconds
+    ), http_date
 
 
 def check_for_release() -> Union[None | ReleaseSummary]:
@@ -321,7 +326,8 @@ def check_for_release() -> Union[None | ReleaseSummary]:
     today, http_date = check_release_headers()
     if not today:
         logger.info(
-            "last updated '%s' is not today skipping release check", http_date.date()
+            "last updated '%s' is not within last 24 hours skipping release check",
+            http_date,
         )
         return None
     resp = requests.get(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -341,22 +347,28 @@ def _dump_rel(rel: ReleaseSummary) -> str:
     return json.dumps(asdict(rel), indent=2)
 
 
-async def get_summary(clean: bool = False) -> dict:
+async def get_summary(pronom_path: Path, clean: bool = False) -> dict:
     """Perform the get summary dance."""
+    logger.info("pronom path: %s", pronom_path)
     rel = check_existing()
     max_puid = int(rel.latest_puid.lower().replace("fmt/", ""))
-    if not Path("pronom-export").exists() or clean:
-        perform_export(max_puid)
+    if not pronom_path.exists() or clean:
+        perform_export(pronom_path=pronom_path, max_puid=max_puid)
     sig_file = download_container(rel)
-    res = await parse_pronom("pronom-export", sig_file)
+    try:
+        res = await parse_pronom(pronom_path, sig_file)
+    except PRONOMException as err:
+        raise PRONOMException(
+            f"folder: '{pronom_path}' might exist but might not contain PRONOM data"
+        ) from err
     rel_augmented = asdict(rel)
     rel_augmented["pronom_data"] = res
     return rel_augmented
 
 
-async def store_summary():
+async def store_summary(pronom_path: Path):
     """Store the PRONOM summary in the database."""
-    summary = await get_summary()
+    summary = await get_summary(pronom_path=pronom_path)
     store_pronom_summary(summary)
 
 
@@ -438,6 +450,14 @@ async def pronom_tools():
     )
 
     parser.add_argument(
+        "--head",
+        "-i",
+        help="return top-level PRONOM data only",
+        required=False,
+        action="store_true",
+    )
+
+    parser.add_argument(
         "--store",
         "-st",
         help="store existing PRONOM summary (ensure that an existing pronom-stats server is running)",
@@ -470,6 +490,15 @@ async def pronom_tools():
     )
 
     parser.add_argument(
+        "--path",
+        "-p",
+        help="path to store the export",
+        required=False,
+        type=Path,
+        default=Path("/var/tmp/pronom-export"),
+    )
+
+    parser.add_argument(
         "--version",
         "-v",
         help="return version information",
@@ -495,12 +524,19 @@ async def pronom_tools():
         sys.exit()
 
     if args.summary or args.clean_and_summary:
-        res = await get_summary(args.clean_and_summary)
+        res = await get_summary(pronom_path=args.path, clean=args.clean_and_summary)
+        print(json.dumps(res, indent=2))
+        sys.exit()
+
+    if args.head:
+        res = await get_summary(pronom_path=args.path, clean=False)
+        pronom_data = res.pop("pronom_data")
+        res["collected_pronom_entries"] = len(pronom_data)
         print(json.dumps(res, indent=2))
         sys.exit()
 
     if args.store:
-        res = await store_summary()
+        res = await store_summary(pronom_path=args.path)
         sys.exit()
 
     if args.download_container:

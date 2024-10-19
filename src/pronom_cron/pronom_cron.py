@@ -9,6 +9,7 @@ import asyncio
 import logging
 import sys
 import time
+from pathlib import Path
 from typing import Final
 
 from dotenv import load_dotenv
@@ -57,16 +58,25 @@ async def cron_main():
         action="store_true",
     )
 
+    parser.add_argument(
+        "--path",
+        "-p",
+        help="path to store the export",
+        required=False,
+        type=Path,
+        default=Path("/var/tmp/pronom-export"),
+    )
+
     args = parser.parse_args()
 
     if args.init:
         logger.info("initializing database")
-        data = await pronom_tools.get_summary(clean=True)
+        data = await pronom_tools.get_summary(pronom_path=args.path, clean=True)
         pronom_tools.store_pronom_summary(data=data)
         sys.exit()
-    rel = pronom_tools.check_for_release()
-    if rel:
-        data = await pronom_tools.get_summary(clean=True)
+    release = pronom_tools.check_for_release()
+    if release:
+        data = await pronom_tools.get_summary(pronom_path=args.path, clean=True)
         pronom_tools.store_pronom_summary(data=data)
 
 

@@ -63,12 +63,12 @@ python -m src.pronom_tools.pronom_tools
 
 ```json
 {
-  "date": "2023-11-23",
+  "release_notes_http_date": "2023-11-23",
   "latest_puid": "fmt/1924",
   "version": "V116",
   "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
   "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
-  "xpuid_const": "x-fmt/455"
+  "x+puid_const": "x-fmt/455"
 }
 ```
 
@@ -76,12 +76,12 @@ python -m src.pronom_tools.pronom_tools
 
 ```json
 {
-  "date": "2023-11-23",
+  "release_notes_http_date": "2023-11-23",
   "latest_puid": "fmt/1924",
   "version": "V116",
   "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
   "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
-  "xpuid_const": "x-fmt/455",
+  "x_puid_const": "x-fmt/455",
   "pronom_data": [
     {
       "name": "Broadcast WAVE 0 Generic",

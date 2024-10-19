@@ -11,10 +11,8 @@ Whether this goal is required, schauen wir mal.
 
     `uvicorn pronom_stats:app --reload`
 
-The database for this app is stored in `/var/tmp/pronom-stats.db`. The
-location can be cleared manually if necessary. Data will persist at
-reboot time otherwise. It's not hugely important to the functioning
-of this app.
+The database for this app is configured by the DATABASE_PATH environment
+variable.
 """
 
 # pylint: disable=E1101,R0801
@@ -29,6 +27,7 @@ import os
 import sqlite3
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Final
 
 import uvicorn
@@ -92,13 +91,23 @@ def _load_config():
             "environment needs configuring: %s (e.g. SERVER_AUTH='badf00d')", err
         )
         raise err
+    try:
+        os.environ["DATABASE_PATH"]
+    except KeyError as err:
+        logging.error(
+            "environment needs configuring: %s (e.g. DATABASE_PATH='/path/to/database')",
+            err,
+        )
+        raise err
 
 
 @asynccontextmanager
 async def lifespan(context: FastAPI):
     """Load the database connection for the life of the app.s"""
     _load_config()
-    con = sqlite3.connect(os.path.join("/var", "tmp", "pronom-stats.db"))
+    db_path = Path(os.environ["DATABASE_PATH"])
+    logger.info("pronom database path: %s", db_path)
+    con = sqlite3.connect(db_path)
     context.cur = con.cursor()
     await init_db(context.cur)
     yield
@@ -193,7 +202,7 @@ async def get_pronom_summary():
                 "version": "V116",
                 "sig_file": "https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml",
                 "container_sig": "https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml",
-                "xpuid_const": "x-fmt/455",
+                "x_puid_const": "x-fmt/455",
                 "pronom_data": [
                     {
                         "name": "Broadcast WAVE 0 Generic",
@@ -488,6 +497,22 @@ def main():
         default=26000,
     )
 
+    parser.add_argument(
+        "--reload",
+        help="enable reload in development mode",
+        required=False,
+        default=False,
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "--workers",
+        help="enable more workers",
+        required=False,
+        default=1,
+        type=int,
+    )
+
     args = parser.parse_args()
 
     logger.info(
@@ -510,7 +535,8 @@ def main():
         port=int(args.port),
         access_log=False,
         log_level="info",
-        reload=True,
+        reload=args.reload,
+        workers=args.workers,
     )
 
 

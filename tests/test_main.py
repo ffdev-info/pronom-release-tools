@@ -2193,7 +2193,7 @@ RELEASE_XML = """
 def test_parse_xml():
     """Ensure the main function for the template repository exists."""
     release_summary = parse_release_xml(release_xml=RELEASE_XML)
-    assert release_summary.date == "2023-08-22"
+    assert release_summary.release_notes_date == "2023-08-22"
     assert release_summary.latest_puid == "fmt/1900"
     assert release_summary.version == "V114"
 

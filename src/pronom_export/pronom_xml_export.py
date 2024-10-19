@@ -8,7 +8,6 @@ Originally: https://github.com/ffdev-info/pronom-xml-export
 import argparse
 import logging
 import multiprocessing
-import os
 import sys
 import time
 from pathlib import Path
@@ -36,10 +35,6 @@ logger = logging.getLogger(__name__)
 
 class PronomExportException(Exception):
     """Exception to raise when there is a problem with this script."""
-
-
-# folder in which to place the download output
-EXPORT_DIR: Final[str] = "pronom-export"
 
 
 # url through which to access Pronom data...
@@ -87,7 +82,7 @@ def get_x_fmt_range() -> int:
     return x_fmt_limit + 1
 
 
-def export_pronom_data(fmt_range: int = None):
+def export_pronom_data(pronom_path: Path, fmt_range: int = None):
     """Export PRONOM data and write locally"""
 
     if not fmt_range:
@@ -96,12 +91,13 @@ def export_pronom_data(fmt_range: int = None):
     x_fmt = ("x-fmt", get_x_fmt_range())
     fmt = ("fmt", fmt_range)
 
+    logger.info("pronom export path: %s", pronom_path)
     logger.info("downloading: %s %s", fmt, x_fmt)
 
     for puid_type, puid_range in [fmt, x_fmt]:
         # Create a directory to write to.
         puid_type_url = f"{BASE_URL}{puid_type}/"
-        new_dir = Path(os.path.join(EXPORT_DIR, puid_type))
+        new_dir = Path(pronom_path, puid_type)
         new_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a list of puid urls and filenames to save the outputs to.
@@ -133,12 +129,21 @@ def main():
         type=int,
     )
 
+    parser.add_argument(
+        "--path",
+        "-p",
+        help="path to store the export",
+        required=False,
+        type=Path,
+        default=Path("/var/tmp/pronom-export"),
+    )
+
     args = parser.parse_args()
     if len(sys.argv) <= 1:
         parser.print_help()
         sys.exit()
     time_start = time.perf_counter()  # time script execution time roughly...
-    export_pronom_data(args.fmt_range)
+    export_pronom_data(pronom_path=args.path, fmt_range=args.fmt_range)
     logger.info("execution time: %s seconds", str(time.perf_counter() - time_start))
 
 
