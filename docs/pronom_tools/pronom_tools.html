@@ -30,7 +30,7 @@
     &quot;version&quot;: &quot;V116&quot;,
     &quot;sig_file&quot;: &quot;https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml&quot;,
     &quot;container_sig&quot;: &quot;https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml&quot;,
-    &quot;xpuid_const&quot;: &quot;x-fmt/455&quot;,
+    &quot;x_puid_const&quot;: &quot;x-fmt/455&quot;,
     &quot;pronom_data&quot;: [
             {
                 &quot;name&quot;: &quot;Broadcast WAVE 0 Generic&quot;,
@@ -47,16 +47,15 @@
         ]
     }
 </code></pre>
-<p>For each PRONOM record <code>container signautre</code> is optional, if either
-<code>signature</code> or <code>container_signature</code> is <code>True</code> the record is considered
-to have a signature for identification.</p>
+<p>For each PRONOM record if either <code>signature</code> or <code>container_signature</code>
+is <code>True</code> the record is considered to have a signature for
+identification and this is recorded in the 'signature' field.</p>
 <p>Descriptions have the following statuses:</p>
 <pre><code class="language-python">    DEPRECATED: Final[str] = &quot;deprecated&quot;
     OUTLINE: Final[str] = &quot;outline&quot;
     COMPLETE: Final[str] = &quot;complete&quot;
 </code></pre>
-<p>s
-Assumption: Container signature file appears online before the release
+<p>Assumption: Container signature file appears online before the release
 notes. If it doesn't then this information will be out of sync from
 one another.</p>
 <details class="source">
@@ -74,7 +73,7 @@ Summary outputs look as follows:
     &#34;version&#34;: &#34;V116&#34;,
     &#34;sig_file&#34;: &#34;https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml&#34;,
     &#34;container_sig&#34;: &#34;https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml&#34;,
-    &#34;xpuid_const&#34;: &#34;x-fmt/455&#34;,
+    &#34;x_puid_const&#34;: &#34;x-fmt/455&#34;,
     &#34;pronom_data&#34;: [
             {
                 &#34;name&#34;: &#34;Broadcast WAVE 0 Generic&#34;,
@@ -92,9 +91,9 @@ Summary outputs look as follows:
     }
 ```
 
-For each PRONOM record `container signautre` is optional, if either
-`signature` or `container_signature` is `True` the record is considered
-to have a signature for identification.
+For each PRONOM record if either `signature` or `container_signature`
+is `True` the record is considered to have a signature for
+identification and this is recorded in the &#39;signature&#39; field.
 
 Descriptions have the following statuses:
 
@@ -103,7 +102,7 @@ Descriptions have the following statuses:
     OUTLINE: Final[str] = &#34;outline&#34;
     COMPLETE: Final[str] = &#34;complete&#34;
 ```
-s
+
 Assumption: Container signature file appears online before the release
 notes. If it doesn&#39;t then this information will be out of sync from
 one another.
@@ -122,7 +121,7 @@ import xml.etree.ElementTree as etree
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, Union
+from typing import Final, Tuple, Union
 
 import requests
 from dotenv import load_dotenv
@@ -131,10 +130,10 @@ from .version import get_version
 
 try:
     from src.pronom_export.pronom_xml_export import export_pronom_data
-    from src.pronom_summary.pronom_summary import parse_pronom
+    from src.pronom_summary.pronom_summary import PRONOMException, parse_pronom
 except ModuleNotFoundError:
     from pronom_export.pronom_xml_export import export_pronom_data
-    from pronom_summary.pronom_summary import parse_pronom
+    from pronom_summary.pronom_summary import PRONOMException, parse_pronom
 
 
 ENV_FILE: Final[str] = &#34;pronom.env&#34;
@@ -158,9 +157,9 @@ logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
 
-RELEASE_NOTE_URL: Final[
-    str
-] = &#34;https://www.nationalarchives.gov.uk/aboutapps/pronom/release-notes.xml&#34;
+RELEASE_NOTE_URL: Final[str] = (
+    &#34;https://www.nationalarchives.gov.uk/aboutapps/pronom/release-notes.xml&#34;
+)
 
 
 USER_AGENT: Final[str] = &#34;pronom-tools/0.0.0&#34;
@@ -174,22 +173,22 @@ CDN_BASE: Final[str] = &#34;https://cdn.nationalarchives.gov.uk/documents/&#34;
 RELEASE_ARCHIVE = (
     &#34;https://www.nationalarchives.gov.uk/aboutapps/pronom/droid-signature-files.htm&#34;
 )
-CONTAINER_UPDATE_URL: Final[
-    str
-] = &#34;https://www.nationalarchives.gov.uk/pronom/container-signature.xml&#34;
+CONTAINER_UPDATE_URL: Final[str] = (
+    &#34;https://www.nationalarchives.gov.uk/pronom/container-signature.xml&#34;
+)
 
 
 @dataclass
 class ReleaseSummary:
     &#34;&#34;&#34;Release summary object.&#34;&#34;&#34;
 
-    date: str
+    release_notes_date: str
     latest_puid: str
     version: str
     release_notes: str
     sig_file: str = &#34;&#34;
     container_sig: str = &#34;&#34;
-    xpuid_const: str = &#34;x-fmt/455&#34;
+    x_puid_const: str = &#34;x-fmt/455&#34;
 
     @staticmethod
     def _get_container_formatted_date(date: str):
@@ -285,9 +284,9 @@ def download_standard(rel: ReleaseSummary) -&gt; str:
     return file_name
 
 
-def perform_export(max_puid: int):
+def perform_export(pronom_path: Path, max_puid: int):
     &#34;&#34;&#34;Export PRONOM xml records.&#34;&#34;&#34;
-    export_pronom_data(fmt_range=max_puid + 1)
+    export_pronom_data(pronom_path=pronom_path, fmt_range=max_puid + 1)
 
 
 def make_headers() -&gt; dict:
@@ -343,7 +342,7 @@ def parse_http_date(date: str) -&gt; datetime:
     return date_obj
 
 
-def parse_release_xml(release_xml: str) -&gt; (str, str, str):
+def parse_release_xml(release_xml: str) -&gt; Tuple[str, str, str]:
     &#34;&#34;&#34;Parse the PRONOM release notes XML.
 
     We need three pieces of information from here, the release date and
@@ -370,7 +369,7 @@ def parse_release_xml(release_xml: str) -&gt; (str, str, str):
     return summary
 
 
-def check_release_headers() -&gt; (bool, datetime):
+def check_release_headers() -&gt; Tuple[bool, datetime]:
     &#34;&#34;&#34;Check the HTTP headers of the release note to see if there is
     a newer date than we have recorded.&#34;&#34;&#34;
     http_headers = requests.head(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -378,7 +377,12 @@ def check_release_headers() -&gt; (bool, datetime):
         raise PronomToolsException(&#34;error reading release headers&#34;)
     http_last_modified_date = http_headers.headers.get(&#34;Last-modified&#34;)
     http_date = parse_http_date(http_last_modified_date)
-    return (http_date.date() == datetime.now().date(), http_date)
+    logger.info(&#34;retrieved date from http header: %s&#34;, http_date)
+    twentry_four_hours_in_seconds: Final[int] = 86400
+    return (
+        int(datetime.now().timestamp()) - int(http_date.timestamp())
+        &lt;= twentry_four_hours_in_seconds
+    ), http_date
 
 
 def check_for_release() -&gt; Union[None | ReleaseSummary]:
@@ -386,7 +390,8 @@ def check_for_release() -&gt; Union[None | ReleaseSummary]:
     today, http_date = check_release_headers()
     if not today:
         logger.info(
-            &#34;last updated &#39;%s&#39; is not today skipping release check&#34;, http_date.date()
+            &#34;last updated &#39;%s&#39; is not within last 24 hours skipping release check&#34;,
+            http_date,
         )
         return None
     resp = requests.get(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -406,22 +411,28 @@ def _dump_rel(rel: ReleaseSummary) -&gt; str:
     return json.dumps(asdict(rel), indent=2)
 
 
-async def get_summary(clean: bool = False) -&gt; dict:
+async def get_summary(pronom_path: Path, clean: bool = False) -&gt; dict:
     &#34;&#34;&#34;Perform the get summary dance.&#34;&#34;&#34;
+    logger.info(&#34;pronom path: %s&#34;, pronom_path)
     rel = check_existing()
     max_puid = int(rel.latest_puid.lower().replace(&#34;fmt/&#34;, &#34;&#34;))
-    if not Path(&#34;pronom-export&#34;).exists() or clean:
-        perform_export(max_puid)
+    if not pronom_path.exists() or clean:
+        perform_export(pronom_path=pronom_path, max_puid=max_puid)
     sig_file = download_container(rel)
-    res = await parse_pronom(&#34;pronom-export&#34;, sig_file)
+    try:
+        res = await parse_pronom(pronom_path, sig_file)
+    except PRONOMException as err:
+        raise PRONOMException(
+            f&#34;folder: &#39;{pronom_path}&#39; might exist but might not contain PRONOM data&#34;
+        ) from err
     rel_augmented = asdict(rel)
     rel_augmented[&#34;pronom_data&#34;] = res
     return rel_augmented
 
 
-async def store_summary():
+async def store_summary(pronom_path: Path):
     &#34;&#34;&#34;Store the PRONOM summary in the database.&#34;&#34;&#34;
-    summary = await get_summary()
+    summary = await get_summary(pronom_path=pronom_path)
     store_pronom_summary(summary)
 
 
@@ -503,6 +514,14 @@ async def pronom_tools():
     )
 
     parser.add_argument(
+        &#34;--head&#34;,
+        &#34;-i&#34;,
+        help=&#34;return top-level PRONOM data only&#34;,
+        required=False,
+        action=&#34;store_true&#34;,
+    )
+
+    parser.add_argument(
         &#34;--store&#34;,
         &#34;-st&#34;,
         help=&#34;store existing PRONOM summary (ensure that an existing pronom-stats server is running)&#34;,
@@ -535,6 +554,15 @@ async def pronom_tools():
     )
 
     parser.add_argument(
+        &#34;--path&#34;,
+        &#34;-p&#34;,
+        help=&#34;path to store the export&#34;,
+        required=False,
+        type=Path,
+        default=Path(&#34;/var/tmp/pronom-export&#34;),
+    )
+
+    parser.add_argument(
         &#34;--version&#34;,
         &#34;-v&#34;,
         help=&#34;return version information&#34;,
@@ -560,12 +588,19 @@ async def pronom_tools():
         sys.exit()
 
     if args.summary or args.clean_and_summary:
-        res = await get_summary(args.clean_and_summary)
+        res = await get_summary(pronom_path=args.path, clean=args.clean_and_summary)
+        print(json.dumps(res, indent=2))
+        sys.exit()
+
+    if args.head:
+        res = await get_summary(pronom_path=args.path, clean=False)
+        pronom_data = res.pop(&#34;pronom_data&#34;)
+        res[&#34;collected_pronom_entries&#34;] = len(pronom_data)
         print(json.dumps(res, indent=2))
         sys.exit()
 
     if args.store:
-        res = await store_summary()
+        res = await store_summary(pronom_path=args.path)
         sys.exit()
 
     if args.download_container:
@@ -628,7 +663,8 @@ if __name__ == &#34;__main__&#34;:
     today, http_date = check_release_headers()
     if not today:
         logger.info(
-            &#34;last updated &#39;%s&#39; is not today skipping release check&#34;, http_date.date()
+            &#34;last updated &#39;%s&#39; is not within last 24 hours skipping release check&#34;,
+            http_date,
         )
         return None
     resp = requests.get(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -636,7 +672,7 @@ if __name__ == &#34;__main__&#34;:
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.check_release_headers"><code class="name flex">
-<span>def <span class="ident">check_release_headers</span></span>(<span>) ‑> (<class 'bool'>, <class 'datetime.datetime'>)</span>
+<span>def <span class="ident">check_release_headers</span></span>(<span>) ‑> Tuple[bool, datetime.datetime]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Check the HTTP headers of the release note to see if there is
@@ -645,7 +681,7 @@ a newer date than we have recorded.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def check_release_headers() -&gt; (bool, datetime):
+<pre><code class="python">def check_release_headers() -&gt; Tuple[bool, datetime]:
     &#34;&#34;&#34;Check the HTTP headers of the release note to see if there is
     a newer date than we have recorded.&#34;&#34;&#34;
     http_headers = requests.head(RELEASE_NOTE_URL, timeout=30, headers=make_headers())
@@ -653,7 +689,12 @@ a newer date than we have recorded.</p></div>
         raise PronomToolsException(&#34;error reading release headers&#34;)
     http_last_modified_date = http_headers.headers.get(&#34;Last-modified&#34;)
     http_date = parse_http_date(http_last_modified_date)
-    return (http_date.date() == datetime.now().date(), http_date)</code></pre>
+    logger.info(&#34;retrieved date from http header: %s&#34;, http_date)
+    twentry_four_hours_in_seconds: Final[int] = 86400
+    return (
+        int(datetime.now().timestamp()) - int(http_date.timestamp())
+        &lt;= twentry_four_hours_in_seconds
+    ), http_date</code></pre>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.download_container"><code class="name flex">
@@ -741,7 +782,7 @@ name for use in later functions.</p>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.get_summary"><code class="name flex">
-<span>async def <span class="ident">get_summary</span></span>(<span>clean: bool = False) ‑> dict</span>
+<span>async def <span class="ident">get_summary</span></span>(<span>pronom_path: pathlib.Path, clean: bool = False) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Perform the get summary dance.</p></div>
@@ -749,14 +790,20 @@ name for use in later functions.</p>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">async def get_summary(clean: bool = False) -&gt; dict:
+<pre><code class="python">async def get_summary(pronom_path: Path, clean: bool = False) -&gt; dict:
     &#34;&#34;&#34;Perform the get summary dance.&#34;&#34;&#34;
+    logger.info(&#34;pronom path: %s&#34;, pronom_path)
     rel = check_existing()
     max_puid = int(rel.latest_puid.lower().replace(&#34;fmt/&#34;, &#34;&#34;))
-    if not Path(&#34;pronom-export&#34;).exists() or clean:
-        perform_export(max_puid)
+    if not pronom_path.exists() or clean:
+        perform_export(pronom_path=pronom_path, max_puid=max_puid)
     sig_file = download_container(rel)
-    res = await parse_pronom(&#34;pronom-export&#34;, sig_file)
+    try:
+        res = await parse_pronom(pronom_path, sig_file)
+    except PRONOMException as err:
+        raise PRONOMException(
+            f&#34;folder: &#39;{pronom_path}&#39; might exist but might not contain PRONOM data&#34;
+        ) from err
     rel_augmented = asdict(rel)
     rel_augmented[&#34;pronom_data&#34;] = res
     return rel_augmented</code></pre>
@@ -845,7 +892,7 @@ file.</p></div>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.parse_release_xml"><code class="name flex">
-<span>def <span class="ident">parse_release_xml</span></span>(<span>release_xml: str) ‑> (<class 'str'>, <class 'str'>, <class 'str'>)</span>
+<span>def <span class="ident">parse_release_xml</span></span>(<span>release_xml: str) ‑> Tuple[str, str, str]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Parse the PRONOM release notes XML.</p>
@@ -856,7 +903,7 @@ file.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def parse_release_xml(release_xml: str) -&gt; (str, str, str):
+<pre><code class="python">def parse_release_xml(release_xml: str) -&gt; Tuple[str, str, str]:
     &#34;&#34;&#34;Parse the PRONOM release notes XML.
 
     We need three pieces of information from here, the release date and
@@ -916,7 +963,7 @@ file.</p></div>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.perform_export"><code class="name flex">
-<span>def <span class="ident">perform_export</span></span>(<span>max_puid: int)</span>
+<span>def <span class="ident">perform_export</span></span>(<span>pronom_path: pathlib.Path, max_puid: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Export PRONOM xml records.</p></div>
@@ -924,9 +971,9 @@ file.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def perform_export(max_puid: int):
+<pre><code class="python">def perform_export(pronom_path: Path, max_puid: int):
     &#34;&#34;&#34;Export PRONOM xml records.&#34;&#34;&#34;
-    export_pronom_data(fmt_range=max_puid + 1)</code></pre>
+    export_pronom_data(pronom_path=pronom_path, fmt_range=max_puid + 1)</code></pre>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.pronom_tools"><code class="name flex">
@@ -971,6 +1018,14 @@ file.</p></div>
     )
 
     parser.add_argument(
+        &#34;--head&#34;,
+        &#34;-i&#34;,
+        help=&#34;return top-level PRONOM data only&#34;,
+        required=False,
+        action=&#34;store_true&#34;,
+    )
+
+    parser.add_argument(
         &#34;--store&#34;,
         &#34;-st&#34;,
         help=&#34;store existing PRONOM summary (ensure that an existing pronom-stats server is running)&#34;,
@@ -1003,6 +1058,15 @@ file.</p></div>
     )
 
     parser.add_argument(
+        &#34;--path&#34;,
+        &#34;-p&#34;,
+        help=&#34;path to store the export&#34;,
+        required=False,
+        type=Path,
+        default=Path(&#34;/var/tmp/pronom-export&#34;),
+    )
+
+    parser.add_argument(
         &#34;--version&#34;,
         &#34;-v&#34;,
         help=&#34;return version information&#34;,
@@ -1028,12 +1092,19 @@ file.</p></div>
         sys.exit()
 
     if args.summary or args.clean_and_summary:
-        res = await get_summary(args.clean_and_summary)
+        res = await get_summary(pronom_path=args.path, clean=args.clean_and_summary)
+        print(json.dumps(res, indent=2))
+        sys.exit()
+
+    if args.head:
+        res = await get_summary(pronom_path=args.path, clean=False)
+        pronom_data = res.pop(&#34;pronom_data&#34;)
+        res[&#34;collected_pronom_entries&#34;] = len(pronom_data)
         print(json.dumps(res, indent=2))
         sys.exit()
 
     if args.store:
-        res = await store_summary()
+        res = await store_summary(pronom_path=args.path)
         sys.exit()
 
     if args.download_container:
@@ -1100,7 +1171,7 @@ file.</p></div>
 </details>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.store_summary"><code class="name flex">
-<span>async def <span class="ident">store_summary</span></span>(<span>)</span>
+<span>async def <span class="ident">store_summary</span></span>(<span>pronom_path: pathlib.Path)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Store the PRONOM summary in the database.</p></div>
@@ -1108,9 +1179,9 @@ file.</p></div>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">async def store_summary():
+<pre><code class="python">async def store_summary(pronom_path: Path):
     &#34;&#34;&#34;Store the PRONOM summary in the database.&#34;&#34;&#34;
-    summary = await get_summary()
+    summary = await get_summary(pronom_path=pronom_path)
     store_pronom_summary(summary)</code></pre>
 </details>
 </dd>
@@ -1140,7 +1211,7 @@ file.</p></div>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.ReleaseSummary"><code class="flex name class">
 <span>class <span class="ident">ReleaseSummary</span></span>
-<span>(</span><span>date: str, latest_puid: str, version: str, release_notes: str, sig_file: str = '', container_sig: str = '', xpuid_const: str = 'x-fmt/455')</span>
+<span>(</span><span>release_notes_date: str, latest_puid: str, version: str, release_notes: str, sig_file: str = '', container_sig: str = '', x_puid_const: str = 'x-fmt/455')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Release summary object.</p></div>
@@ -1152,13 +1223,13 @@ file.</p></div>
 class ReleaseSummary:
     &#34;&#34;&#34;Release summary object.&#34;&#34;&#34;
 
-    date: str
+    release_notes_date: str
     latest_puid: str
     version: str
     release_notes: str
     sig_file: str = &#34;&#34;
     container_sig: str = &#34;&#34;
-    xpuid_const: str = &#34;x-fmt/455&#34;
+    x_puid_const: str = &#34;x-fmt/455&#34;
 
     @staticmethod
     def _get_container_formatted_date(date: str):
@@ -1213,15 +1284,15 @@ class ReleaseSummary:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="src.pronom_tools.pronom_tools.ReleaseSummary.date"><code class="name">var <span class="ident">date</span> : str</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
 <dt id="src.pronom_tools.pronom_tools.ReleaseSummary.latest_puid"><code class="name">var <span class="ident">latest_puid</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
 <dt id="src.pronom_tools.pronom_tools.ReleaseSummary.release_notes"><code class="name">var <span class="ident">release_notes</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.pronom_tools.pronom_tools.ReleaseSummary.release_notes_date"><code class="name">var <span class="ident">release_notes_date</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1233,7 +1304,7 @@ class ReleaseSummary:
 <dd>
 <div class="desc"></div>
 </dd>
-<dt id="src.pronom_tools.pronom_tools.ReleaseSummary.xpuid_const"><code class="name">var <span class="ident">xpuid_const</span> : str</code></dt>
+<dt id="src.pronom_tools.pronom_tools.ReleaseSummary.x_puid_const"><code class="name">var <span class="ident">x_puid_const</span> : str</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -1345,15 +1416,15 @@ release summary.</p>
 <h4><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary" href="#src.pronom_tools.pronom_tools.ReleaseSummary">ReleaseSummary</a></code></h4>
 <ul class="">
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.container_sig" href="#src.pronom_tools.pronom_tools.ReleaseSummary.container_sig">container_sig</a></code></li>
-<li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.date" href="#src.pronom_tools.pronom_tools.ReleaseSummary.date">date</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.get_container_name" href="#src.pronom_tools.pronom_tools.ReleaseSummary.get_container_name">get_container_name</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.latest_puid" href="#src.pronom_tools.pronom_tools.ReleaseSummary.latest_puid">latest_puid</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.make_container_sig_file_url" href="#src.pronom_tools.pronom_tools.ReleaseSummary.make_container_sig_file_url">make_container_sig_file_url</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.make_sig_file_url" href="#src.pronom_tools.pronom_tools.ReleaseSummary.make_sig_file_url">make_sig_file_url</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.release_notes" href="#src.pronom_tools.pronom_tools.ReleaseSummary.release_notes">release_notes</a></code></li>
+<li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.release_notes_date" href="#src.pronom_tools.pronom_tools.ReleaseSummary.release_notes_date">release_notes_date</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.sig_file" href="#src.pronom_tools.pronom_tools.ReleaseSummary.sig_file">sig_file</a></code></li>
 <li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.version" href="#src.pronom_tools.pronom_tools.ReleaseSummary.version">version</a></code></li>
-<li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.xpuid_const" href="#src.pronom_tools.pronom_tools.ReleaseSummary.xpuid_const">xpuid_const</a></code></li>
+<li><code><a title="src.pronom_tools.pronom_tools.ReleaseSummary.x_puid_const" href="#src.pronom_tools.pronom_tools.ReleaseSummary.x_puid_const">x_puid_const</a></code></li>
 </ul>
 </li>
 </ul>

@@ -179,7 +179,7 @@ async def parse_pronom(pronom_export: str, container_signature: str) -&gt; list[
     for item in pronom_summary:
         if item.get(&#34;identifier&#34;) not in container_summary:
             continue
-        item[&#34;container signauture&#34;] = True
+        item[&#34;signature&#34;] = True
     return sorted(pronom_summary, key=lambda item: item[&#34;name&#34;])
 
 
@@ -279,7 +279,7 @@ format name in alphabetical order.</p></div>
     for item in pronom_summary:
         if item.get(&#34;identifier&#34;) not in container_summary:
             continue
-        item[&#34;container signauture&#34;] = True
+        item[&#34;signature&#34;] = True
     return sorted(pronom_summary, key=lambda item: item[&#34;name&#34;])</code></pre>
 </details>
 </dd>

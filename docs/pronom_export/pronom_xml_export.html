@@ -38,7 +38,6 @@ Originally: https://github.com/ffdev-info/pronom-xml-export
 import argparse
 import logging
 import multiprocessing
-import os
 import sys
 import time
 from pathlib import Path
@@ -66,10 +65,6 @@ logger = logging.getLogger(__name__)
 
 class PronomExportException(Exception):
     &#34;&#34;&#34;Exception to raise when there is a problem with this script.&#34;&#34;&#34;
-
-
-# folder in which to place the download output
-EXPORT_DIR: Final[str] = &#34;pronom-export&#34;
 
 
 # url through which to access Pronom data...
@@ -117,7 +112,7 @@ def get_x_fmt_range() -&gt; int:
     return x_fmt_limit + 1
 
 
-def export_pronom_data(fmt_range: int = None):
+def export_pronom_data(pronom_path: Path, fmt_range: int = None):
     &#34;&#34;&#34;Export PRONOM data and write locally&#34;&#34;&#34;
 
     if not fmt_range:
@@ -126,12 +121,13 @@ def export_pronom_data(fmt_range: int = None):
     x_fmt = (&#34;x-fmt&#34;, get_x_fmt_range())
     fmt = (&#34;fmt&#34;, fmt_range)
 
+    logger.info(&#34;pronom export path: %s&#34;, pronom_path)
     logger.info(&#34;downloading: %s %s&#34;, fmt, x_fmt)
 
     for puid_type, puid_range in [fmt, x_fmt]:
         # Create a directory to write to.
         puid_type_url = f&#34;{BASE_URL}{puid_type}/&#34;
-        new_dir = Path(os.path.join(EXPORT_DIR, puid_type))
+        new_dir = Path(pronom_path, puid_type)
         new_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a list of puid urls and filenames to save the outputs to.
@@ -163,12 +159,21 @@ def main():
         type=int,
     )
 
+    parser.add_argument(
+        &#34;--path&#34;,
+        &#34;-p&#34;,
+        help=&#34;path to store the export&#34;,
+        required=False,
+        type=Path,
+        default=Path(&#34;/var/tmp/pronom-export&#34;),
+    )
+
     args = parser.parse_args()
     if len(sys.argv) &lt;= 1:
         parser.print_help()
         sys.exit()
     time_start = time.perf_counter()  # time script execution time roughly...
-    export_pronom_data(args.fmt_range)
+    export_pronom_data(pronom_path=args.path, fmt_range=args.fmt_range)
     logger.info(&#34;execution time: %s seconds&#34;, str(time.perf_counter() - time_start))
 
 
@@ -234,7 +239,7 @@ def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
 </details>
 </dd>
 <dt id="src.pronom_export.pronom_xml_export.export_pronom_data"><code class="name flex">
-<span>def <span class="ident">export_pronom_data</span></span>(<span>fmt_range: int = None)</span>
+<span>def <span class="ident">export_pronom_data</span></span>(<span>pronom_path: pathlib.Path, fmt_range: int = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Export PRONOM data and write locally</p></div>
@@ -242,7 +247,7 @@ def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def export_pronom_data(fmt_range: int = None):
+<pre><code class="python">def export_pronom_data(pronom_path: Path, fmt_range: int = None):
     &#34;&#34;&#34;Export PRONOM data and write locally&#34;&#34;&#34;
 
     if not fmt_range:
@@ -251,12 +256,13 @@ def download_and_save_puid(puid_filename_pair: tuple) -&gt; None:
     x_fmt = (&#34;x-fmt&#34;, get_x_fmt_range())
     fmt = (&#34;fmt&#34;, fmt_range)
 
+    logger.info(&#34;pronom export path: %s&#34;, pronom_path)
     logger.info(&#34;downloading: %s %s&#34;, fmt, x_fmt)
 
     for puid_type, puid_range in [fmt, x_fmt]:
         # Create a directory to write to.
         puid_type_url = f&#34;{BASE_URL}{puid_type}/&#34;
-        new_dir = Path(os.path.join(EXPORT_DIR, puid_type))
+        new_dir = Path(pronom_path, puid_type)
         new_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a list of puid urls and filenames to save the outputs to.
@@ -320,12 +326,21 @@ so this will need to be updated manually.</p></div>
         type=int,
     )
 
+    parser.add_argument(
+        &#34;--path&#34;,
+        &#34;-p&#34;,
+        help=&#34;path to store the export&#34;,
+        required=False,
+        type=Path,
+        default=Path(&#34;/var/tmp/pronom-export&#34;),
+    )
+
     args = parser.parse_args()
     if len(sys.argv) &lt;= 1:
         parser.print_help()
         sys.exit()
     time_start = time.perf_counter()  # time script execution time roughly...
-    export_pronom_data(args.fmt_range)
+    export_pronom_data(pronom_path=args.path, fmt_range=args.fmt_range)
     logger.info(&#34;execution time: %s seconds&#34;, str(time.perf_counter() - time_start))</code></pre>
 </details>
 </dd>
