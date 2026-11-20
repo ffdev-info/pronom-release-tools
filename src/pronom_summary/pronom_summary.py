@@ -158,7 +158,9 @@ def main():
     """Primary entry point for this script."""
 
     rel = pronom_tools.check_existing()
-    container_name = pronom_tools.download_container(rel=rel)
+    container_name = pronom_tools.download_container(
+        rel=rel, pronom_path=pronom_tools.default_export_path
+    )
     pronom_summary = asyncio.run(
         parse_pronom(
             pronom_export="pronom-export",

@@ -61,15 +61,16 @@ from typing import Final, Tuple, Union
 
 import requests
 from dotenv import load_dotenv
-
-from .version import get_version
+from natsort import natsorted
 
 try:
     from src.pronom_export.pronom_xml_export import export_pronom_data
     from src.pronom_summary.pronom_summary import PRONOMException, parse_pronom
+    from src.pronom_tools.version import get_version
 except ModuleNotFoundError:
     from pronom_export.pronom_xml_export import export_pronom_data
     from pronom_summary.pronom_summary import PRONOMException, parse_pronom
+    from pronom_tools.version import get_version
 
 
 ENV_FILE: Final[str] = "pronom.env"
@@ -94,7 +95,7 @@ logger = logging.getLogger(__name__)
 
 
 RELEASE_NOTE_URL: Final[str] = (
-    "https://www.nationalarchives.gov.uk/aboutapps/pronom/release-notes.xml"
+    "https://pronom.nationalarchives.gov.uk/release-notes.xml"
 )
 
 
@@ -105,13 +106,17 @@ class PronomToolsException(Exception):
     """Exception to raise if there's an error in the workflow."""
 
 
-CDN_BASE: Final[str] = "https://cdn.nationalarchives.gov.uk/documents/"
-RELEASE_ARCHIVE = (
-    "https://www.nationalarchives.gov.uk/aboutapps/pronom/droid-signature-files.htm"
+RELEASE_ARCHIVE: Final[str] = "https://pronom.nationalarchives.gov.uk/releases"
+
+SIGNATURE_LATEST_URL: Final[str] = (
+    "https://pronom.nationalarchives.gov.uk/binary-signature.xml"
 )
-CONTAINER_UPDATE_URL: Final[str] = (
-    "https://www.nationalarchives.gov.uk/pronom/container-signature.xml"
+
+CONTAINER_LATEST_URL: Final[str] = (
+    "https://pronom.nationalarchives.gov.uk/container-signature.xml"
 )
+
+default_export_path: Final[Path] = Path("/var/tmp/pronom-export")
 
 
 @dataclass
@@ -126,55 +131,18 @@ class ReleaseSummary:
     container_sig: str = ""
     x_puid_const: str = "x-fmt/455"
 
-    @staticmethod
-    def _get_container_formatted_date(date: str):
-        """Return a date formatted to container-signature-file
-        specifications.
-        """
-        date_format = "%a, %d %b %Y %H:%M:%S GMT"
-        date_obj = datetime.strptime(date, date_format)
-        return datetime.strftime(date_obj, "%Y%m%d")
-
-    def _get_container_date(self):
-        """Get the latest container signature file date from the
-        canonical update location. Last-modified-date is used to set
-        this in DROID itself.
-        """
-        http_headers = requests.head(
-            CONTAINER_UPDATE_URL, timeout=30, headers=make_headers()
-        )
-        if not http_headers.status_code == 200:
-            raise PronomToolsException("error reading release headers")
-        http_last_modified_date = http_headers.headers.get("Last-modified")
-        http_date = self._get_container_formatted_date(http_last_modified_date)
-        return http_date
-
     def make_sig_file_url(self) -> str:
-        """Construct a URL to the standard signature file for the given
-        release summary.
-
-        Example: `https://cdn.nationalarchives.gov.uk/documents/DROID_SignatureFile_V116.xml`
-        """
-        file_name = f"{CDN_BASE}DROID_SignatureFile_V{self.version.lower().replace('v', '')}.xml"
-        self.sig_file = file_name
-        return file_name
+        """Return the latest signature file URL."""
+        self.sig_file = SIGNATURE_LATEST_URL
+        return self.sig_file
 
     def make_container_sig_file_url(self) -> str:
-        """Construct a URL to the container signature file for the
-        given release summary.
-
-        Example: `https://cdn.nationalarchives.gov.uk/documents/container-signature-20231127.xml`
-        """
-        file_name = f"{CDN_BASE}container-signature-{self._get_container_date()}.xml"
-        self.container_sig = file_name
-        return file_name
-
-    def get_container_name(self) -> str:
-        """Return just the container signature file name."""
-        return self.container_sig.replace(CDN_BASE, "")
+        """Return the latest container signature file URL."""
+        self.container_sig = CONTAINER_LATEST_URL
+        return self.container_sig
 
 
-def download_container(rel: ReleaseSummary) -> str:
+def download_container(rel: ReleaseSummary, pronom_path: Path) -> str:
     """Download a container signature file and return the signature file
     name for use in later functions.
 
@@ -191,13 +159,13 @@ def download_container(rel: ReleaseSummary) -> str:
     ```
     """
     res = requests.get(rel.container_sig, timeout=30)
-    file_name = rel.container_sig.split(CDN_BASE, 1)[1]
+    file_name = pronom_path / rel.container_sig.rsplit("/", 1)[1]
     with open(file_name, "w", encoding="utf-8") as sig_file:
         sig_file.write(res.text)
     return file_name
 
 
-def download_standard(rel: ReleaseSummary) -> str:
+def download_standard(rel: ReleaseSummary, pronom_path: Path) -> str:
     """Download a standard signature file and return the signature file
     name for use in later functions.
 
@@ -214,7 +182,7 @@ def download_standard(rel: ReleaseSummary) -> str:
     ```
     """
     res = requests.get(rel.sig_file, timeout=30)
-    file_name = rel.sig_file.split(CDN_BASE, 1)[1]
+    file_name = pronom_path / rel.sig_file.rsplit("/", 1)[1]
     with open(file_name, "w", encoding="utf-8") as sig_file:
         sig_file.write(res.text)
     return file_name
@@ -354,7 +322,7 @@ async def get_summary(pronom_path: Path, clean: bool = False) -> dict:
     max_puid = int(rel.latest_puid.lower().replace("fmt/", ""))
     if not pronom_path.exists() or clean:
         perform_export(pronom_path=pronom_path, max_puid=max_puid)
-    sig_file = download_container(rel)
+    sig_file = download_container(rel=rel, pronom_path=pronom_path)
     try:
         res = await parse_pronom(pronom_path, sig_file)
     except PRONOMException as err:
@@ -362,7 +330,7 @@ async def get_summary(pronom_path: Path, clean: bool = False) -> dict:
             f"folder: '{pronom_path}' might exist but might not contain PRONOM data"
         ) from err
     rel_augmented = asdict(rel)
-    rel_augmented["pronom_data"] = res
+    rel_augmented["pronom_data"] = natsorted(res, key=lambda puids: puids["identifier"])
     return rel_augmented
 
 
@@ -495,7 +463,7 @@ async def pronom_tools():
         help="path to store the export",
         required=False,
         type=Path,
-        default=Path("/var/tmp/pronom-export"),
+        default=default_export_path,
     )
 
     parser.add_argument(
@@ -541,14 +509,14 @@ async def pronom_tools():
 
     if args.download_container:
         rel = check_existing()
-        sig_file = download_container(rel)
-        print("container sig output to:", Path(sig_file).resolve())
+        sig_file = download_container(rel=rel, pronom_path=args.path)
+        print("container signature file output to:", Path(sig_file).resolve())
         sys.exit()
 
     if args.download_signature:
         rel = check_existing()
-        sig_file = download_standard(rel)
-        print("container sig output to:", Path(sig_file).resolve())
+        sig_file = download_standard(rel=rel, pronom_path=args.path)
+        print("standard binary signature file output to:", Path(sig_file).resolve())
         sys.exit()
 
     parser.print_help()
