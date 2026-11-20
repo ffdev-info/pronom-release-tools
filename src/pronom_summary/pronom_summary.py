@@ -128,7 +128,7 @@ def summarize_xml(pronom_xml: list[Path]):
         res["signature"] = sig is not None
         res["identifier"] = puid
     except AttributeError as err:
-        raise PRONOMException(f"cannot process {pronom_xml}") from err
+        raise PRONOMException(f"cannot process {pronom_xml}: {puid}") from err
     return res
 
 
@@ -141,6 +141,10 @@ async def parse_pronom(pronom_export: str, container_signature: str) -> list[dic
     xml = []
     for item in puid_path.glob("**/*"):
         if not item.is_file():
+            continue
+        if "fmt" not in str(item):
+            # Then it isn't a PRONOM record, for example, might be one
+            # of the signature files..
             continue
         xml.append(Path(item.resolve()))
     pronom_summary = []
