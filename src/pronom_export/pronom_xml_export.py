@@ -38,7 +38,7 @@ class PronomExportException(Exception):
 
 
 # url through which to access Pronom data...
-BASE_URL: Final[str] = "https://www.nationalarchives.gov.uk/PRONOM/"
+BASE_URL: Final[str] = "https://pronom.nationalarchives.gov.uk/"
 
 
 def check_record(ffb: str) -> bool:

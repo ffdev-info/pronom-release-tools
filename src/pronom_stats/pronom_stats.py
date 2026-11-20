@@ -353,7 +353,7 @@ async def get_signature_files_hx():
 
 def _make_url_from_identifier(identifier: str) -> str:
     """Make a PRONOM URL from its inentifier."""
-    url_pattern = "https://www.nationalarchives.gov.uk/PRONOM/"
+    url_pattern = "https://pronom.nationalarchives.gov.uk/"
     return f"<a href='{url_pattern}{identifier}'>{identifier}</a>"
 
 
