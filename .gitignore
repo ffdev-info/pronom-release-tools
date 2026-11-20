@@ -143,3 +143,5 @@ todo
 token-pypi
 *pypi
 token-*
+container-signature.xml
+binary-signature.xml
